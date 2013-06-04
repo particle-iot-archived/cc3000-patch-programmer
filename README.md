@@ -25,6 +25,6 @@ Development Environment Setup:
 
 10. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Linker -> General -> Script file (-T), Browse & select linker file : "linker_stm32f10x_md_dfu.ld" and uncomment "#define DFU_BUILD_ENABLE" in platform_config.h for dfu based build used for programming the chip using dfu-util tool.
 
-11. Program the chips using 8 or 9 above, to start the patching process, press the BUTTON for >= 3sec.
+11. Program the chips using 8 or 9 above, Press the BUTTON to start the patching process.
 
 12. The LEDs should blink every 200ms to indicate the patching is in progress. When successfully completed, the LEDs should stay ON.
