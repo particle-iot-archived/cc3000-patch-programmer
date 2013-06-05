@@ -180,20 +180,6 @@ int main(void)
 {
 	Set_System();
 
-	// Init WLAN and request to load with no patches.
-	// this is in order to overwrite restrictions to write to specific places in EEPROM
-	WLAN_Init_Driver(1);
-
-	/* Read patch version */
-	unsigned char patchVer[2];
-	nvmem_read_sp_version(patchVer);
-//	if (patchVer[1] == 14)
-//	{
-//	/* Latest Patch Available */
-//	}
-
-	/* To do - compare the patch version before making the update */
-
 	/* Main loop */
 	while (1)
 	{
@@ -285,9 +271,11 @@ int WLAN_Init_Driver(unsigned short cRequestPatch)
 	wlan_init(WLAN_Async_Callback, WLAN_Firmware_Patch, WLAN_Driver_Patch, WLAN_BootLoader_Patch,
 				CC3000_Read_Interrupt_Pin, CC3000_Interrupt_Enable, CC3000_Interrupt_Disable, CC3000_Write_Enable_Pin);
 
+	Delay(1000);
+
 	/* Trigger a WLAN device */
 	wlan_start(cRequestPatch);
-	//wlan_smart_config_set_prefix(aucCC3000_prefix);
+	wlan_smart_config_set_prefix(aucCC3000_prefix);
 
 	/* Mask out all non-required events from CC3000 */
 	wlan_set_event_mask(HCI_EVNT_WLAN_KEEPALIVE | HCI_EVNT_WLAN_UNSOL_INIT | HCI_EVNT_WLAN_ASYNC_PING_REPORT);
@@ -429,8 +417,9 @@ void WLAN_Apply_Patch(void)
 
 	CC3000_PATCH_APPLIED = 0;
 
-	LED_Off(LED1);
-	LED_Off(LED2);
+	// Init WLAN and request to load with no patches.
+	// this is in order to overwrite restrictions to write to specific places in EEPROM
+	WLAN_Init_Driver(1);
 
 	// read MAC address
 	mac_status = nvmem_get_mac_address(cMacFromEeprom);
@@ -509,6 +498,8 @@ void WLAN_Apply_Patch(void)
 	WLAN_Init_Driver(0);
 
 	CC3000_PATCH_APPLIED = 1;
+
+	Delay(100);
 
 	LED_On(LED1);
 	LED_On(LED2);
