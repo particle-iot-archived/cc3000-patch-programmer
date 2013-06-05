@@ -1,0 +1,2304 @@
+   1              		.syntax unified
+   2              		.cpu cortex-m3
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 4
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.thumb
+  14              		.file	"cc3000_spi.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.section	.text.SysCtlDelay,"ax",%progbits
+  19              		.align	1
+  20              		.global	SysCtlDelay
+  21              		.thumb
+  22              		.thumb_func
+  24              	SysCtlDelay:
+  25              	.LFB56:
+  26              		.file 1 "../src/cc3000_spi.c"
+   1:../src/cc3000_spi.c **** /**
+   2:../src/cc3000_spi.c ****   ******************************************************************************
+   3:../src/cc3000_spi.c ****   * @file    cc3000_spi.c
+   4:../src/cc3000_spi.c ****   * @author  Spark Application Team
+   5:../src/cc3000_spi.c ****   * @version V1.0.0
+   6:../src/cc3000_spi.c ****   * @date    29-March-2013
+   7:../src/cc3000_spi.c ****   * @brief   This file contains all the functions prototypes for the
+   8:../src/cc3000_spi.c ****   *          CC3000 SPI firmware driver.
+   9:../src/cc3000_spi.c ****   ******************************************************************************
+  10:../src/cc3000_spi.c ****   */
+  11:../src/cc3000_spi.c **** 
+  12:../src/cc3000_spi.c **** #include "cc3000_spi.h"
+  13:../src/cc3000_spi.c **** 
+  14:../src/cc3000_spi.c **** unsigned char wlan_rx_buffer[SPI_BUFFER_SIZE];	//CC3000_RX_BUFFER_SIZE
+  15:../src/cc3000_spi.c **** unsigned char wlan_tx_buffer[SPI_BUFFER_SIZE];	//CC3000_TX_BUFFER_SIZE
+  16:../src/cc3000_spi.c **** 
+  17:../src/cc3000_spi.c **** #define eSPI_STATE_POWERUP				(0)
+  18:../src/cc3000_spi.c **** #define eSPI_STATE_INITIALIZED			(1)
+  19:../src/cc3000_spi.c **** #define eSPI_STATE_IDLE					(2)
+  20:../src/cc3000_spi.c **** #define eSPI_STATE_WRITE_IRQ			(3)
+  21:../src/cc3000_spi.c **** #define eSPI_STATE_WRITE_FIRST_PORTION	(4)
+  22:../src/cc3000_spi.c **** #define eSPI_STATE_WRITE_EOT			(5)
+  23:../src/cc3000_spi.c **** #define eSPI_STATE_READ_IRQ				(6)
+  24:../src/cc3000_spi.c **** #define eSPI_STATE_READ_FIRST_PORTION	(7)
+  25:../src/cc3000_spi.c **** #define eSPI_STATE_READ_EOT				(8)
+  26:../src/cc3000_spi.c **** 
+  27:../src/cc3000_spi.c **** typedef struct
+  28:../src/cc3000_spi.c **** {
+  29:../src/cc3000_spi.c **** 	gcSpiHandleRx SPIRxHandler;
+  30:../src/cc3000_spi.c **** 	unsigned short usTxPacketLength;
+  31:../src/cc3000_spi.c **** 	unsigned short usRxPacketLength;
+  32:../src/cc3000_spi.c **** 	volatile unsigned long ulSpiState;
+  33:../src/cc3000_spi.c **** 	unsigned char *pTxPacket;
+  34:../src/cc3000_spi.c **** 	unsigned char *pRxPacket;
+  35:../src/cc3000_spi.c **** } tSpiInformation;
+  36:../src/cc3000_spi.c **** 
+  37:../src/cc3000_spi.c **** tSpiInformation sSpiInformation;
+  38:../src/cc3000_spi.c **** 
+  39:../src/cc3000_spi.c **** // Static buffer for 5 bytes of SPI HEADER
+  40:../src/cc3000_spi.c **** unsigned char tSpiReadHeader[] = { READ, 0, 0, 0, 0 };
+  41:../src/cc3000_spi.c **** 
+  42:../src/cc3000_spi.c **** void SpiPauseSpi(void);
+  43:../src/cc3000_spi.c **** void SpiReadData(unsigned char *data, unsigned short size);
+  44:../src/cc3000_spi.c **** void SpiTriggerRxProcessing(void);
+  45:../src/cc3000_spi.c **** void SpiWriteAsync(const unsigned char *data, unsigned short size);
+  46:../src/cc3000_spi.c **** void SpiReadWriteStringInt(uint32_t ulTrueFalse, const uint8_t *ptrData, uint32_t ulDataSize);
+  47:../src/cc3000_spi.c **** void SpiReadWriteString(uint32_t ulTrueFalse, const uint8_t *ptrData, uint32_t ulDataSize);
+  48:../src/cc3000_spi.c **** long SpiFirstWrite(unsigned char *ucBuf, unsigned short usLength);
+  49:../src/cc3000_spi.c **** long SpiReadDataCont(void);
+  50:../src/cc3000_spi.c **** void SpiReadHeader(void);
+  51:../src/cc3000_spi.c **** void SpiContReadOperation(void);
+  52:../src/cc3000_spi.c **** 
+  53:../src/cc3000_spi.c **** /**
+  54:../src/cc3000_spi.c ****  * @brief  The functions delay for a number of MCU clk period
+  55:../src/cc3000_spi.c ****  * @param  The number of MCU clk period to delay for
+  56:../src/cc3000_spi.c ****  * @retval None
+  57:../src/cc3000_spi.c ****  */
+  58:../src/cc3000_spi.c **** inline void SysCtlDelay(unsigned long ulDelay)
+  59:../src/cc3000_spi.c **** {
+  27              		.loc 1 59 0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              		@ link register save eliminated.
+  32              	.LVL0:
+  33 0000 7047     		bx	lr
+  34              		.cfi_endproc
+  35              	.LFE56:
+  37              		.section	.text.SpiOpen,"ax",%progbits
+  38              		.align	1
+  39              		.global	SpiOpen
+  40              		.thumb
+  41              		.thumb_func
+  43              	SpiOpen:
+  44              	.LFB57:
+  60:../src/cc3000_spi.c **** 	/* Decrement nCount value */
+  61:../src/cc3000_spi.c **** 	while (ulDelay != 0)
+  62:../src/cc3000_spi.c **** 	{
+  63:../src/cc3000_spi.c **** 		ulDelay--;
+  64:../src/cc3000_spi.c **** 	}
+  65:../src/cc3000_spi.c **** }
+  66:../src/cc3000_spi.c **** 
+  67:../src/cc3000_spi.c **** /****************************************************************************
+  68:../src/cc3000_spi.c ****  CC3000 SPI Protocol API
+  69:../src/cc3000_spi.c ****  ****************************************************************************/
+  70:../src/cc3000_spi.c **** void SpiOpen(gcSpiHandleRx pfRxHandler)
+  71:../src/cc3000_spi.c **** {
+  45              		.loc 1 71 0
+  46              		.cfi_startproc
+  47              		@ args = 0, pretend = 0, frame = 0
+  48              		@ frame_needed = 0, uses_anonymous_args = 0
+  49              	.LVL1:
+  50              		.loc 1 71 0
+  51 0000 08B5     		push	{r3, lr}
+  52              	.LCFI0:
+  53              		.cfi_def_cfa_offset 8
+  54              		.cfi_offset 3, -8
+  55              		.cfi_offset 14, -4
+  72:../src/cc3000_spi.c **** 	sSpiInformation.ulSpiState = eSPI_STATE_POWERUP;
+  56              		.loc 1 72 0
+  57 0002 064B     		ldr	r3, .L3
+  58 0004 0022     		movs	r2, #0
+  73:../src/cc3000_spi.c **** 
+  74:../src/cc3000_spi.c **** 	sSpiInformation.SPIRxHandler = pfRxHandler;
+  59              		.loc 1 74 0
+  60 0006 1860     		str	r0, [r3, #0]
+  75:../src/cc3000_spi.c **** 	sSpiInformation.pRxPacket = wlan_rx_buffer;
+  61              		.loc 1 75 0
+  62 0008 0549     		ldr	r1, .L3+4
+  76:../src/cc3000_spi.c **** 	sSpiInformation.usRxPacketLength = 0;
+  77:../src/cc3000_spi.c **** 	sSpiInformation.pTxPacket = NULL;
+  78:../src/cc3000_spi.c **** 	sSpiInformation.usTxPacketLength = 0;
+  79:../src/cc3000_spi.c **** 
+  80:../src/cc3000_spi.c **** 	/* Enable Interrupt */
+  81:../src/cc3000_spi.c **** 	tSLInformation.WlanInterruptEnable();
+  63              		.loc 1 81 0
+  64 000a 0648     		ldr	r0, .L3+8
+  65              	.LVL2:
+  72:../src/cc3000_spi.c **** 	sSpiInformation.ulSpiState = eSPI_STATE_POWERUP;
+  66              		.loc 1 72 0
+  67 000c 9A60     		str	r2, [r3, #8]
+  75:../src/cc3000_spi.c **** 	sSpiInformation.pRxPacket = wlan_rx_buffer;
+  68              		.loc 1 75 0
+  69 000e 1961     		str	r1, [r3, #16]
+  76:../src/cc3000_spi.c **** 	sSpiInformation.usRxPacketLength = 0;
+  70              		.loc 1 76 0
+  71 0010 DA80     		strh	r2, [r3, #6]	@ movhi
+  77:../src/cc3000_spi.c **** 	sSpiInformation.pTxPacket = NULL;
+  72              		.loc 1 77 0
+  73 0012 DA60     		str	r2, [r3, #12]
+  78:../src/cc3000_spi.c **** 	sSpiInformation.usTxPacketLength = 0;
+  74              		.loc 1 78 0
+  75 0014 9A80     		strh	r2, [r3, #4]	@ movhi
+  76              		.loc 1 81 0
+  77 0016 036A     		ldr	r3, [r0, #32]
+  78 0018 9847     		blx	r3
+  79              	.LVL3:
+  80 001a 08BD     		pop	{r3, pc}
+  81              	.L4:
+  82              		.align	2
+  83              	.L3:
+  84 001c 00000000 		.word	sSpiInformation
+  85 0020 00000000 		.word	wlan_rx_buffer
+  86 0024 00000000 		.word	tSLInformation
+  87              		.cfi_endproc
+  88              	.LFE57:
+  90              		.section	.text.SpiClose,"ax",%progbits
+  91              		.align	1
+  92              		.global	SpiClose
+  93              		.thumb
+  94              		.thumb_func
+  96              	SpiClose:
+  97              	.LFB58:
+  82:../src/cc3000_spi.c **** }
+  83:../src/cc3000_spi.c **** 
+  84:../src/cc3000_spi.c **** void SpiClose(void)
+  85:../src/cc3000_spi.c **** {
+  98              		.loc 1 85 0
+  99              		.cfi_startproc
+ 100              		@ args = 0, pretend = 0, frame = 0
+ 101              		@ frame_needed = 0, uses_anonymous_args = 0
+ 102 0000 08B5     		push	{r3, lr}
+ 103              	.LCFI1:
+ 104              		.cfi_def_cfa_offset 8
+ 105              		.cfi_offset 3, -8
+ 106              		.cfi_offset 14, -4
+  86:../src/cc3000_spi.c **** 	if (sSpiInformation.pRxPacket)
+ 107              		.loc 1 86 0
+ 108 0002 044B     		ldr	r3, .L11
+ 109 0004 1A69     		ldr	r2, [r3, #16]
+ 110 0006 0AB1     		cbz	r2, .L6
+  87:../src/cc3000_spi.c **** 	{
+  88:../src/cc3000_spi.c **** 		sSpiInformation.pRxPacket = 0;
+ 111              		.loc 1 88 0
+ 112 0008 0020     		movs	r0, #0
+ 113 000a 1861     		str	r0, [r3, #16]
+ 114              	.L6:
+  89:../src/cc3000_spi.c **** 	}
+  90:../src/cc3000_spi.c **** 
+  91:../src/cc3000_spi.c **** 	/* Disable Interrupt */
+  92:../src/cc3000_spi.c **** 	tSLInformation.WlanInterruptDisable();
+ 115              		.loc 1 92 0
+ 116 000c 0249     		ldr	r1, .L11+4
+ 117 000e 4B6A     		ldr	r3, [r1, #36]
+ 118 0010 9847     		blx	r3
+ 119              	.LVL4:
+ 120 0012 08BD     		pop	{r3, pc}
+ 121              	.L12:
+ 122              		.align	2
+ 123              	.L11:
+ 124 0014 00000000 		.word	sSpiInformation
+ 125 0018 00000000 		.word	tSLInformation
+ 126              		.cfi_endproc
+ 127              	.LFE58:
+ 129              		.section	.text.SpiResumeSpi,"ax",%progbits
+ 130              		.align	1
+ 131              		.global	SpiResumeSpi
+ 132              		.thumb
+ 133              		.thumb_func
+ 135              	SpiResumeSpi:
+ 136              	.LFB59:
+  93:../src/cc3000_spi.c **** }
+  94:../src/cc3000_spi.c **** 
+  95:../src/cc3000_spi.c **** void SpiResumeSpi(void)
+  96:../src/cc3000_spi.c **** {
+ 137              		.loc 1 96 0
+ 138              		.cfi_startproc
+ 139              		@ args = 0, pretend = 0, frame = 0
+ 140              		@ frame_needed = 0, uses_anonymous_args = 0
+ 141              		@ link register save eliminated.
+ 142              	.LBB14:
+ 143              	.LBB15:
+ 144              		.file 2 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h"
+   1:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /**************************************************************************//**
+   2:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @file     core_cmFunc.h
+   3:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @brief    CMSIS Cortex-M Core Function Access Header File
+   4:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @version  V3.01
+   5:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @date     06. March 2012
+   6:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  *
+   7:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @note
+   8:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
+   9:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  *
+  10:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @par
+  11:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * ARM Limited (ARM) is supplying this software for use with Cortex-M
+  12:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * processor based microcontrollers.  This file can be freely distributed
+  13:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * within development tools that are supporting such ARM based processors.
+  14:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  *
+  15:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * @par
+  16:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
+  17:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
+  18:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
+  19:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
+  20:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
+  21:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  *
+  22:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  ******************************************************************************/
+  23:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  24:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #ifndef __CORE_CMFUNC_H
+  25:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #define __CORE_CMFUNC_H
+  26:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  27:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  28:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* ###########################  Core Function Access  ########################### */
+  29:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \ingroup  CMSIS_Core_FunctionInterface
+  30:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \defgroup CMSIS_Core_RegAccFunctions CMSIS Core Register Access Functions
+  31:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   @{
+  32:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+  33:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  34:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #if   defined ( __CC_ARM ) /*------------------RealView Compiler -----------------*/
+  35:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* ARM armcc specific functions */
+  36:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  37:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #if (__ARMCC_VERSION < 400677)
+  38:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   #error "Please use ARM Compiler Toolchain V4.0.677 or later!"
+  39:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #endif
+  40:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  41:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* intrinsic void __enable_irq();     */
+  42:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* intrinsic void __disable_irq();    */
+  43:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  44:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get Control Register
+  45:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  46:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the content of the Control Register.
+  47:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  48:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               Control Register value
+  49:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+  50:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_CONTROL(void)
+  51:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+  52:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regControl         __ASM("control");
+  53:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regControl);
+  54:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+  55:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  56:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  57:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set Control Register
+  58:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  59:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function writes the given value to the Control Register.
+  60:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  61:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    control  Control Register value to set
+  62:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+  63:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_CONTROL(uint32_t control)
+  64:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+  65:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regControl         __ASM("control");
+  66:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regControl = control;
+  67:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+  68:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  69:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  70:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get IPSR Register
+  71:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  72:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the content of the IPSR Register.
+  73:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  74:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               IPSR Register value
+  75:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+  76:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_IPSR(void)
+  77:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+  78:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regIPSR          __ASM("ipsr");
+  79:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regIPSR);
+  80:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+  81:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  82:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  83:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get APSR Register
+  84:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  85:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the content of the APSR Register.
+  86:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  87:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               APSR Register value
+  88:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+  89:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_APSR(void)
+  90:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+  91:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regAPSR          __ASM("apsr");
+  92:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regAPSR);
+  93:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+  94:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  95:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  96:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get xPSR Register
+  97:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+  98:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the content of the xPSR Register.
+  99:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 100:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               xPSR Register value
+ 101:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 102:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_xPSR(void)
+ 103:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 104:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regXPSR          __ASM("xpsr");
+ 105:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regXPSR);
+ 106:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 107:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 108:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 109:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get Process Stack Pointer
+ 110:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 111:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the current value of the Process Stack Pointer (PSP).
+ 112:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 113:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               PSP Register value
+ 114:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 115:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_PSP(void)
+ 116:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 117:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regProcessStackPointer  __ASM("psp");
+ 118:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regProcessStackPointer);
+ 119:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 120:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 121:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 122:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set Process Stack Pointer
+ 123:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 124:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function assigns the given value to the Process Stack Pointer (PSP).
+ 125:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 126:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    topOfProcStack  Process Stack Pointer value to set
+ 127:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 128:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_PSP(uint32_t topOfProcStack)
+ 129:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 130:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regProcessStackPointer  __ASM("psp");
+ 131:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regProcessStackPointer = topOfProcStack;
+ 132:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 133:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 134:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 135:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get Main Stack Pointer
+ 136:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 137:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the current value of the Main Stack Pointer (MSP).
+ 138:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 139:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               MSP Register value
+ 140:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 141:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_MSP(void)
+ 142:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 143:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regMainStackPointer     __ASM("msp");
+ 144:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regMainStackPointer);
+ 145:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 146:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 147:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 148:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set Main Stack Pointer
+ 149:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 150:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function assigns the given value to the Main Stack Pointer (MSP).
+ 151:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 152:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    topOfMainStack  Main Stack Pointer value to set
+ 153:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 154:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_MSP(uint32_t topOfMainStack)
+ 155:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 156:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regMainStackPointer     __ASM("msp");
+ 157:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regMainStackPointer = topOfMainStack;
+ 158:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 159:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 160:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 161:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get Priority Mask
+ 162:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 163:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the current state of the priority mask bit from the Priority Mask Registe
+ 164:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 165:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               Priority Mask value
+ 166:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 167:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_PRIMASK(void)
+ 168:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 169:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regPriMask         __ASM("primask");
+ 170:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regPriMask);
+ 171:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 172:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 173:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 174:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set Priority Mask
+ 175:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 176:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function assigns the given value to the Priority Mask Register.
+ 177:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 178:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    priMask  Priority Mask
+ 179:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 180:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_PRIMASK(uint32_t priMask)
+ 181:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 182:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regPriMask         __ASM("primask");
+ 183:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regPriMask = (priMask);
+ 184:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 185:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 186:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 187:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #if       (__CORTEX_M >= 0x03)
+ 188:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 189:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Enable FIQ
+ 190:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 191:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function enables FIQ interrupts by clearing the F-bit in the CPSR.
+ 192:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     Can only be executed in Privileged modes.
+ 193:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 194:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #define __enable_fault_irq                __enable_fiq
+ 195:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 196:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 197:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Disable FIQ
+ 198:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 199:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function disables FIQ interrupts by setting the F-bit in the CPSR.
+ 200:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     Can only be executed in Privileged modes.
+ 201:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 202:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #define __disable_fault_irq               __disable_fiq
+ 203:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 204:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 205:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get Base Priority
+ 206:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 207:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the current value of the Base Priority register.
+ 208:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 209:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               Base Priority register value
+ 210:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 211:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t  __get_BASEPRI(void)
+ 212:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 213:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regBasePri         __ASM("basepri");
+ 214:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regBasePri);
+ 215:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 216:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 217:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 218:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set Base Priority
+ 219:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 220:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function assigns the given value to the Base Priority register.
+ 221:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 222:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    basePri  Base Priority value to set
+ 223:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 224:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_BASEPRI(uint32_t basePri)
+ 225:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 226:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regBasePri         __ASM("basepri");
+ 227:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regBasePri = (basePri & 0xff);
+ 228:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 229:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 230:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 231:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get Fault Mask
+ 232:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 233:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the current value of the Fault Mask register.
+ 234:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 235:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               Fault Mask register value
+ 236:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 237:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_FAULTMASK(void)
+ 238:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 239:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regFaultMask       __ASM("faultmask");
+ 240:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regFaultMask);
+ 241:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 242:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 243:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 244:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set Fault Mask
+ 245:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 246:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function assigns the given value to the Fault Mask register.
+ 247:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 248:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    faultMask  Fault Mask value to set
+ 249:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 250:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_FAULTMASK(uint32_t faultMask)
+ 251:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 252:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regFaultMask       __ASM("faultmask");
+ 253:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regFaultMask = (faultMask & (uint32_t)1);
+ 254:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 255:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 256:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #endif /* (__CORTEX_M >= 0x03) */
+ 257:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 258:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 259:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #if       (__CORTEX_M == 0x04)
+ 260:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 261:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Get FPSCR
+ 262:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 263:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function returns the current value of the Floating Point Status/Control register.
+ 264:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 265:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \return               Floating Point Status/Control register value
+ 266:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 267:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE uint32_t __get_FPSCR(void)
+ 268:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 269:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+ 270:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regfpscr         __ASM("fpscr");
+ 271:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   return(__regfpscr);
+ 272:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #else
+ 273:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****    return(0);
+ 274:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #endif
+ 275:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 276:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 277:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 278:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Set FPSCR
+ 279:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 280:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     This function assigns the given value to the Floating Point Status/Control register.
+ 281:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 282:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****     \param [in]    fpscr  Floating Point Status/Control value to set
+ 283:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 284:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __STATIC_INLINE void __set_FPSCR(uint32_t fpscr)
+ 285:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 286:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+ 287:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   register uint32_t __regfpscr         __ASM("fpscr");
+ 288:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __regfpscr = (fpscr);
+ 289:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #endif
+ 290:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 291:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 292:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #endif /* (__CORTEX_M == 0x04) */
+ 293:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 294:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 295:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #elif defined ( __ICCARM__ ) /*------------------ ICC Compiler -------------------*/
+ 296:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* IAR iccarm specific functions */
+ 297:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 298:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #include <cmsis_iar.h>
+ 299:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 300:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 301:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #elif defined ( __TMS470__ ) /*---------------- TI CCS Compiler ------------------*/
+ 302:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* TI CCS specific functions */
+ 303:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 304:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #include <cmsis_ccs.h>
+ 305:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 306:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 307:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** #elif defined ( __GNUC__ ) /*------------------ GNU Compiler ---------------------*/
+ 308:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /* GNU gcc specific functions */
+ 309:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 310:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Enable IRQ Interrupts
+ 311:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 312:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   This function enables IRQ interrupts by clearing the I-bit in the CPSR.
+ 313:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   Can only be executed in Privileged modes.
+ 314:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 315:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __attribute__( ( always_inline ) ) __STATIC_INLINE void __enable_irq(void)
+ 316:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 317:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __ASM volatile ("cpsie i");
+ 145              		.loc 2 317 0
+ 146              	@ 317 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h" 1
+ 147 0000 62B6     		cpsie i
+ 148              	@ 0 "" 2
+ 149              		.thumb
+ 150 0002 7047     		bx	lr
+ 151              	.LBE15:
+ 152              	.LBE14:
+ 153              		.cfi_endproc
+ 154              	.LFE59:
+ 156              		.section	.text.SpiPauseSpi,"ax",%progbits
+ 157              		.align	1
+ 158              		.global	SpiPauseSpi
+ 159              		.thumb
+ 160              		.thumb_func
+ 162              	SpiPauseSpi:
+ 163              	.LFB60:
+  97:../src/cc3000_spi.c **** 	//
+  98:../src/cc3000_spi.c **** 	//Enable IRQ Interrupts
+  99:../src/cc3000_spi.c **** 	//
+ 100:../src/cc3000_spi.c **** 	__enable_irq();
+ 101:../src/cc3000_spi.c **** }
+ 102:../src/cc3000_spi.c **** 
+ 103:../src/cc3000_spi.c **** void SpiPauseSpi(void)
+ 104:../src/cc3000_spi.c **** {
+ 164              		.loc 1 104 0
+ 165              		.cfi_startproc
+ 166              		@ args = 0, pretend = 0, frame = 0
+ 167              		@ frame_needed = 0, uses_anonymous_args = 0
+ 168              		@ link register save eliminated.
+ 169              	.LBB16:
+ 170              	.LBB17:
+ 318:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** }
+ 319:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 320:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 321:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** /** \brief  Disable IRQ Interrupts
+ 322:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** 
+ 323:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   This function disables IRQ interrupts by setting the I-bit in the CPSR.
+ 324:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   Can only be executed in Privileged modes.
+ 325:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****  */
+ 326:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** __attribute__( ( always_inline ) ) __STATIC_INLINE void __disable_irq(void)
+ 327:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h **** {
+ 328:/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h ****   __ASM volatile ("cpsid i");
+ 171              		.loc 2 328 0
+ 172              	@ 328 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h" 1
+ 173 0000 72B6     		cpsid i
+ 174              	@ 0 "" 2
+ 175              		.thumb
+ 176 0002 7047     		bx	lr
+ 177              	.LBE17:
+ 178              	.LBE16:
+ 179              		.cfi_endproc
+ 180              	.LFE60:
+ 182              		.section	.text.SpiTriggerRxProcessing,"ax",%progbits
+ 183              		.align	1
+ 184              		.global	SpiTriggerRxProcessing
+ 185              		.thumb
+ 186              		.thumb_func
+ 188              	SpiTriggerRxProcessing:
+ 189              	.LFB61:
+ 105:../src/cc3000_spi.c **** 	//
+ 106:../src/cc3000_spi.c **** 	//Disable IRQ Interrupts
+ 107:../src/cc3000_spi.c **** 	//
+ 108:../src/cc3000_spi.c **** 	__disable_irq();
+ 109:../src/cc3000_spi.c **** }
+ 110:../src/cc3000_spi.c **** 
+ 111:../src/cc3000_spi.c **** /**
+ 112:../src/cc3000_spi.c ****  * @brief  This indicate the end of a receive and calls a registered handler
+ 113:../src/cc3000_spi.c ****  to process the received data
+ 114:../src/cc3000_spi.c ****  * @param  None
+ 115:../src/cc3000_spi.c ****  * @retval None
+ 116:../src/cc3000_spi.c ****  */
+ 117:../src/cc3000_spi.c **** void SpiTriggerRxProcessing(void)
+ 118:../src/cc3000_spi.c **** {
+ 190              		.loc 1 118 0
+ 191              		.cfi_startproc
+ 192              		@ args = 0, pretend = 0, frame = 0
+ 193              		@ frame_needed = 0, uses_anonymous_args = 0
+ 194 0000 08B5     		push	{r3, lr}
+ 195              	.LCFI2:
+ 196              		.cfi_def_cfa_offset 8
+ 197              		.cfi_offset 3, -8
+ 198              		.cfi_offset 14, -4
+ 199              	.LBB18:
+ 200              	.LBB19:
+ 201              	.LBB20:
+ 202              		.loc 2 328 0
+ 203              	@ 328 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cmFunc.h" 1
+ 204 0002 72B6     		cpsid i
+ 205              	@ 0 "" 2
+ 206              		.thumb
+ 207              	.LBE20:
+ 208              	.LBE19:
+ 209              	.LBE18:
+ 119:../src/cc3000_spi.c **** 	SpiPauseSpi();
+ 120:../src/cc3000_spi.c **** 
+ 121:../src/cc3000_spi.c **** 	//
+ 122:../src/cc3000_spi.c **** 	// Trigger Rx processing
+ 123:../src/cc3000_spi.c **** 	//
+ 124:../src/cc3000_spi.c **** 	DEASSERT_CS();
+ 210              		.loc 1 124 0
+ 211 0004 0648     		ldr	r0, .L16
+ 212 0006 4FF48051 		mov	r1, #4096
+ 213 000a FFF7FEFF 		bl	GPIO_SetBits
+ 214              	.LVL5:
+ 125:../src/cc3000_spi.c **** 	sSpiInformation.ulSpiState = eSPI_STATE_IDLE;
+ 215              		.loc 1 125 0
+ 216 000e 054B     		ldr	r3, .L16+4
+ 217 0010 0222     		movs	r2, #2
+ 126:../src/cc3000_spi.c **** 	sSpiInformation.SPIRxHandler(sSpiInformation.pRxPacket + SPI_HEADER_SIZE);
+ 218              		.loc 1 126 0
+ 219 0012 1869     		ldr	r0, [r3, #16]
+ 125:../src/cc3000_spi.c **** 	sSpiInformation.ulSpiState = eSPI_STATE_IDLE;
+ 220              		.loc 1 125 0
+ 221 0014 9A60     		str	r2, [r3, #8]
+ 222              		.loc 1 126 0
+ 223 0016 1968     		ldr	r1, [r3, #0]
+ 224 0018 0530     		adds	r0, r0, #5
+ 225 001a 8847     		blx	r1
+ 226              	.LVL6:
+ 227 001c 08BD     		pop	{r3, pc}
+ 228              	.L17:
+ 229 001e 00BF     		.align	2
+ 230              	.L16:
+ 231 0020 000C0140 		.word	1073810432
+ 232 0024 00000000 		.word	sSpiInformation
+ 233              		.cfi_endproc
+ 234              	.LFE61:
+ 236              		.section	.text.SpiReadWriteStringInt,"ax",%progbits
+ 237              		.align	1
+ 238              		.global	SpiReadWriteStringInt
+ 239              		.thumb
+ 240              		.thumb_func
+ 242              	SpiReadWriteStringInt:
+ 243              	.LFB64:
+ 127:../src/cc3000_spi.c **** }
+ 128:../src/cc3000_spi.c **** 
+ 129:../src/cc3000_spi.c **** /**
+ 130:../src/cc3000_spi.c ****  * @brief  Sends data on SPI to generate interrupt on reception
+ 131:../src/cc3000_spi.c ****  * @param  The pointer to data buffer
+ 132:../src/cc3000_spi.c ****  * @param  This size of data
+ 133:../src/cc3000_spi.c ****  * @retval None
+ 134:../src/cc3000_spi.c ****  */
+ 135:../src/cc3000_spi.c **** void SpiReadData(unsigned char *data, unsigned short size)
+ 136:../src/cc3000_spi.c **** {
+ 137:../src/cc3000_spi.c **** 	SpiReadWriteStringInt(TRUE, data, size);
+ 138:../src/cc3000_spi.c **** }
+ 139:../src/cc3000_spi.c **** 
+ 140:../src/cc3000_spi.c **** /**
+ 141:../src/cc3000_spi.c ****  * @brief  This sends data over the SPI transport layer with
+ 142:../src/cc3000_spi.c ****  * @param  None
+ 143:../src/cc3000_spi.c ****  * @retval None
+ 144:../src/cc3000_spi.c ****  */
+ 145:../src/cc3000_spi.c **** void SpiWriteAsync(const unsigned char *data, unsigned short size)
+ 146:../src/cc3000_spi.c **** {
+ 147:../src/cc3000_spi.c **** 	//
+ 148:../src/cc3000_spi.c **** 	// The DMA TX/RX channel must be disabled.
+ 149:../src/cc3000_spi.c **** 	//
+ 150:../src/cc3000_spi.c **** 	SpiReadWriteString(FALSE, data, size);
+ 151:../src/cc3000_spi.c **** }
+ 152:../src/cc3000_spi.c **** 
+ 153:../src/cc3000_spi.c **** /**
+ 154:../src/cc3000_spi.c ****  * @brief  This function TX and RX SPI data and configures interrupt generation
+ 155:../src/cc3000_spi.c ****  * 		at the end of the TX interrupt
+ 156:../src/cc3000_spi.c ****  * @param  ulTrueFlase True for a read or False for write
+ 157:../src/cc3000_spi.c ****  * @param  ptrData Pointer to data to be written
+ 158:../src/cc3000_spi.c ****  * @param  ulDataSize The size of the data to be written or read
+ 159:../src/cc3000_spi.c ****  * @retval None
+ 160:../src/cc3000_spi.c ****  */
+ 161:../src/cc3000_spi.c **** void SpiReadWriteStringInt(uint32_t ulTrueFalse, const uint8_t *ptrData, uint32_t ulDataSize)
+ 162:../src/cc3000_spi.c **** {
+ 244              		.loc 1 162 0
+ 245              		.cfi_startproc
+ 246              		@ args = 0, pretend = 0, frame = 0
+ 247              		@ frame_needed = 0, uses_anonymous_args = 0
+ 248              	.LVL7:
+ 249 0000 70B5     		push	{r4, r5, r6, lr}
+ 250              	.LCFI3:
+ 251              		.cfi_def_cfa_offset 16
+ 252              		.cfi_offset 4, -16
+ 253              		.cfi_offset 5, -12
+ 254              		.cfi_offset 6, -8
+ 255              		.cfi_offset 14, -4
+ 256              		.loc 1 162 0
+ 257 0002 0646     		mov	r6, r0
+ 163:../src/cc3000_spi.c **** 	/* Delay for at lest 50 us at the start of every transfer */
+ 164:../src/cc3000_spi.c **** 	SysCtlDelay(FIFTY_US_DELAY);
+ 165:../src/cc3000_spi.c **** 
+ 166:../src/cc3000_spi.c **** 	/* Disable DMA Channels */
+ 167:../src/cc3000_spi.c **** 	CC3000_SPI_DMA_Channels(DISABLE);
+ 258              		.loc 1 167 0
+ 259 0004 0020     		movs	r0, #0
+ 260              	.LVL8:
+ 162:../src/cc3000_spi.c **** {
+ 261              		.loc 1 162 0
+ 262 0006 1446     		mov	r4, r2
+ 263 0008 0D46     		mov	r5, r1
+ 264              		.loc 1 167 0
+ 265 000a FFF7FEFF 		bl	CC3000_SPI_DMA_Channels
+ 266              	.LVL9:
+ 168:../src/cc3000_spi.c **** 
+ 169:../src/cc3000_spi.c **** 	if (ulTrueFalse == TRUE)
+ 267              		.loc 1 169 0
+ 268 000e 012E     		cmp	r6, #1
+ 269 0010 A4B2     		uxth	r4, r4
+ 270              	.LVL10:
+ 271 0012 07D1     		bne	.L19
+ 170:../src/cc3000_spi.c **** 	{
+ 171:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_RX, (uint8_t*) ptrData, ulDataSize);
+ 272              		.loc 1 171 0
+ 273 0014 3046     		mov	r0, r6
+ 274 0016 2946     		mov	r1, r5
+ 275 0018 2246     		mov	r2, r4
+ 276 001a FFF7FEFF 		bl	CC3000_DMA_Config
+ 277              	.LVL11:
+ 172:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_TX, (uint8_t*) tSpiReadHeader, ulDataSize);
+ 278              		.loc 1 172 0
+ 279 001e 0020     		movs	r0, #0
+ 280 0020 1249     		ldr	r1, .L30
+ 281 0022 07E0     		b	.L29
+ 282              	.L19:
+ 173:../src/cc3000_spi.c **** 	}
+ 174:../src/cc3000_spi.c **** 	else
+ 175:../src/cc3000_spi.c **** 	{
+ 176:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_RX, (uint8_t*) sSpiInformation.pRxPacket, ulDataSize);
+ 283              		.loc 1 176 0
+ 284 0024 124B     		ldr	r3, .L30+4
+ 285 0026 0120     		movs	r0, #1
+ 286 0028 1969     		ldr	r1, [r3, #16]
+ 287 002a 2246     		mov	r2, r4
+ 288 002c FFF7FEFF 		bl	CC3000_DMA_Config
+ 289              	.LVL12:
+ 177:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_TX, (uint8_t*) ptrData, ulDataSize);
+ 290              		.loc 1 177 0
+ 291 0030 0020     		movs	r0, #0
+ 292 0032 2946     		mov	r1, r5
+ 293              	.L29:
+ 294 0034 2246     		mov	r2, r4
+ 295 0036 FFF7FEFF 		bl	CC3000_DMA_Config
+ 296              	.LVL13:
+ 178:../src/cc3000_spi.c **** 	}
+ 179:../src/cc3000_spi.c **** 
+ 180:../src/cc3000_spi.c **** 	/* Enable DMA SPI Interrupt */
+ 181:../src/cc3000_spi.c **** 	DMA_ITConfig(CC3000_SPI_TX_DMA_CHANNEL, DMA_IT_TC, ENABLE);
+ 297              		.loc 1 181 0
+ 298 003a 0E48     		ldr	r0, .L30+8
+ 299 003c 0221     		movs	r1, #2
+ 300 003e 0122     		movs	r2, #1
+ 301 0040 FFF7FEFF 		bl	DMA_ITConfig
+ 302              	.LVL14:
+ 182:../src/cc3000_spi.c **** 
+ 183:../src/cc3000_spi.c **** 	/* Enable DMA Channels */
+ 184:../src/cc3000_spi.c **** 	CC3000_SPI_DMA_Channels(ENABLE);
+ 303              		.loc 1 184 0
+ 304 0044 0120     		movs	r0, #1
+ 305 0046 FFF7FEFF 		bl	CC3000_SPI_DMA_Channels
+ 306              	.LVL15:
+ 307              	.L21:
+ 185:../src/cc3000_spi.c **** 
+ 186:../src/cc3000_spi.c **** 	/* Wait until DMA Transfer Completes */
+ 187:../src/cc3000_spi.c **** 	while(DMA_GetCurrDataCounter(CC3000_SPI_TX_DMA_CHANNEL))
+ 308              		.loc 1 187 0 discriminator 1
+ 309 004a 0A48     		ldr	r0, .L30+8
+ 310 004c FFF7FEFF 		bl	DMA_GetCurrDataCounter
+ 311              	.LVL16:
+ 312 0050 0028     		cmp	r0, #0
+ 313 0052 FAD1     		bne	.L21
+ 314              	.L25:
+ 188:../src/cc3000_spi.c **** 	{
+ 189:../src/cc3000_spi.c **** 	}
+ 190:../src/cc3000_spi.c **** 
+ 191:../src/cc3000_spi.c **** 	while(DMA_GetCurrDataCounter(CC3000_SPI_RX_DMA_CHANNEL))
+ 315              		.loc 1 191 0
+ 316 0054 0848     		ldr	r0, .L30+12
+ 317 0056 FFF7FEFF 		bl	DMA_GetCurrDataCounter
+ 318              	.LVL17:
+ 319 005a 0028     		cmp	r0, #0
+ 320 005c FAD1     		bne	.L25
+ 321              	.L24:
+ 192:../src/cc3000_spi.c **** 	{
+ 193:../src/cc3000_spi.c **** 	}
+ 194:../src/cc3000_spi.c **** 
+ 195:../src/cc3000_spi.c **** 	/* Loop until SPI busy */
+ 196:../src/cc3000_spi.c **** 	while (SPI_I2S_GetFlagStatus(CC3000_SPI, SPI_I2S_FLAG_BSY ) != RESET)
+ 322              		.loc 1 196 0
+ 323 005e 0748     		ldr	r0, .L30+16
+ 324 0060 8021     		movs	r1, #128
+ 325 0062 FFF7FEFF 		bl	SPI_I2S_GetFlagStatus
+ 326              	.LVL18:
+ 327 0066 0028     		cmp	r0, #0
+ 328 0068 F9D1     		bne	.L24
+ 197:../src/cc3000_spi.c **** 	{
+ 198:../src/cc3000_spi.c **** 	}
+ 199:../src/cc3000_spi.c **** }
+ 329              		.loc 1 199 0
+ 330 006a 70BD     		pop	{r4, r5, r6, pc}
+ 331              	.L31:
+ 332              		.align	2
+ 333              	.L30:
+ 334 006c 00000000 		.word	.LANCHOR0
+ 335 0070 00000000 		.word	sSpiInformation
+ 336 0074 58000240 		.word	1073872984
+ 337 0078 44000240 		.word	1073872964
+ 338 007c 00380040 		.word	1073756160
+ 339              		.cfi_endproc
+ 340              	.LFE64:
+ 342              		.section	.text.SpiReadData,"ax",%progbits
+ 343              		.align	1
+ 344              		.global	SpiReadData
+ 345              		.thumb
+ 346              		.thumb_func
+ 348              	SpiReadData:
+ 349              	.LFB62:
+ 136:../src/cc3000_spi.c **** {
+ 350              		.loc 1 136 0
+ 351              		.cfi_startproc
+ 352              		@ args = 0, pretend = 0, frame = 0
+ 353              		@ frame_needed = 0, uses_anonymous_args = 0
+ 354              		@ link register save eliminated.
+ 355              	.LVL19:
+ 136:../src/cc3000_spi.c **** {
+ 356              		.loc 1 136 0
+ 357 0000 0346     		mov	r3, r0
+ 358 0002 0A46     		mov	r2, r1
+ 137:../src/cc3000_spi.c **** 	SpiReadWriteStringInt(TRUE, data, size);
+ 359              		.loc 1 137 0
+ 360 0004 0120     		movs	r0, #1
+ 361              	.LVL20:
+ 362 0006 1946     		mov	r1, r3
+ 363              	.LVL21:
+ 138:../src/cc3000_spi.c **** }
+ 364              		.loc 1 138 0
+ 137:../src/cc3000_spi.c **** 	SpiReadWriteStringInt(TRUE, data, size);
+ 365              		.loc 1 137 0
+ 366 0008 FFF7FEBF 		b	SpiReadWriteStringInt
+ 367              	.LVL22:
+ 368              		.cfi_endproc
+ 369              	.LFE62:
+ 371              		.section	.text.SpiReadWriteString,"ax",%progbits
+ 372              		.align	1
+ 373              		.global	SpiReadWriteString
+ 374              		.thumb
+ 375              		.thumb_func
+ 377              	SpiReadWriteString:
+ 378              	.LFB65:
+ 200:../src/cc3000_spi.c **** 
+ 201:../src/cc3000_spi.c **** /**
+ 202:../src/cc3000_spi.c ****  * @brief  This function TX and RX SPI data with no interrupt at end of SPI TX
+ 203:../src/cc3000_spi.c ****  * @param  ulTrueFlase True for a read or False for write
+ 204:../src/cc3000_spi.c ****  * @param  ptrData Pointer to data to be written
+ 205:../src/cc3000_spi.c ****  * @param  ulDataSize The size of the data to be written or read
+ 206:../src/cc3000_spi.c ****  * @retval None
+ 207:../src/cc3000_spi.c ****  */
+ 208:../src/cc3000_spi.c **** void SpiReadWriteString(uint32_t ulTrueFalse, const uint8_t *ptrData, uint32_t ulDataSize)
+ 209:../src/cc3000_spi.c **** {
+ 379              		.loc 1 209 0
+ 380              		.cfi_startproc
+ 381              		@ args = 0, pretend = 0, frame = 0
+ 382              		@ frame_needed = 0, uses_anonymous_args = 0
+ 383              	.LVL23:
+ 384 0000 70B5     		push	{r4, r5, r6, lr}
+ 385              	.LCFI4:
+ 386              		.cfi_def_cfa_offset 16
+ 387              		.cfi_offset 4, -16
+ 388              		.cfi_offset 5, -12
+ 389              		.cfi_offset 6, -8
+ 390              		.cfi_offset 14, -4
+ 391              		.loc 1 209 0
+ 392 0002 0646     		mov	r6, r0
+ 210:../src/cc3000_spi.c **** 	SysCtlDelay(FIFTY_US_DELAY);
+ 211:../src/cc3000_spi.c **** 
+ 212:../src/cc3000_spi.c **** 	/* Disable DMA RX Channels */
+ 213:../src/cc3000_spi.c **** 	CC3000_SPI_DMA_Channels(DISABLE);
+ 393              		.loc 1 213 0
+ 394 0004 0020     		movs	r0, #0
+ 395              	.LVL24:
+ 209:../src/cc3000_spi.c **** {
+ 396              		.loc 1 209 0
+ 397 0006 1446     		mov	r4, r2
+ 398 0008 0D46     		mov	r5, r1
+ 399              		.loc 1 213 0
+ 400 000a FFF7FEFF 		bl	CC3000_SPI_DMA_Channels
+ 401              	.LVL25:
+ 214:../src/cc3000_spi.c **** 
+ 215:../src/cc3000_spi.c **** 	/* Specify the DMA Read/Write buffer and size */
+ 216:../src/cc3000_spi.c **** 	if (ulTrueFalse == TRUE)
+ 402              		.loc 1 216 0
+ 403 000e 012E     		cmp	r6, #1
+ 404 0010 A4B2     		uxth	r4, r4
+ 405              	.LVL26:
+ 406 0012 07D1     		bne	.L34
+ 217:../src/cc3000_spi.c **** 	{
+ 218:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_RX, (uint8_t*) ptrData, ulDataSize);
+ 407              		.loc 1 218 0
+ 408 0014 3046     		mov	r0, r6
+ 409 0016 2946     		mov	r1, r5
+ 410 0018 2246     		mov	r2, r4
+ 411 001a FFF7FEFF 		bl	CC3000_DMA_Config
+ 412              	.LVL27:
+ 219:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_TX, (uint8_t*) tSpiReadHeader, ulDataSize);
+ 413              		.loc 1 219 0
+ 414 001e 0020     		movs	r0, #0
+ 415 0020 1049     		ldr	r1, .L45
+ 416 0022 07E0     		b	.L44
+ 417              	.L34:
+ 220:../src/cc3000_spi.c **** 	}
+ 221:../src/cc3000_spi.c **** 	else
+ 222:../src/cc3000_spi.c **** 	{
+ 223:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_RX, (uint8_t*) sSpiInformation.pRxPacket, ulDataSize);
+ 418              		.loc 1 223 0
+ 419 0024 104B     		ldr	r3, .L45+4
+ 420 0026 0120     		movs	r0, #1
+ 421 0028 1969     		ldr	r1, [r3, #16]
+ 422 002a 2246     		mov	r2, r4
+ 423 002c FFF7FEFF 		bl	CC3000_DMA_Config
+ 424              	.LVL28:
+ 224:../src/cc3000_spi.c **** 		CC3000_DMA_Config(CC3000_DMA_TX, (uint8_t*) ptrData, ulDataSize);
+ 425              		.loc 1 224 0
+ 426 0030 0020     		movs	r0, #0
+ 427 0032 2946     		mov	r1, r5
+ 428              	.L44:
+ 429 0034 2246     		mov	r2, r4
+ 430 0036 FFF7FEFF 		bl	CC3000_DMA_Config
+ 431              	.LVL29:
+ 225:../src/cc3000_spi.c **** 	}
+ 226:../src/cc3000_spi.c **** 
+ 227:../src/cc3000_spi.c **** 	/* Enable DMA Channels */
+ 228:../src/cc3000_spi.c **** 	CC3000_SPI_DMA_Channels(ENABLE);
+ 432              		.loc 1 228 0
+ 433 003a 0120     		movs	r0, #1
+ 434 003c FFF7FEFF 		bl	CC3000_SPI_DMA_Channels
+ 435              	.LVL30:
+ 436              	.L36:
+ 229:../src/cc3000_spi.c **** 
+ 230:../src/cc3000_spi.c **** 	/* Wait until DMA Transfer Completes */
+ 231:../src/cc3000_spi.c **** 	while(DMA_GetCurrDataCounter(CC3000_SPI_TX_DMA_CHANNEL))
+ 437              		.loc 1 231 0 discriminator 1
+ 438 0040 0A48     		ldr	r0, .L45+8
+ 439 0042 FFF7FEFF 		bl	DMA_GetCurrDataCounter
+ 440              	.LVL31:
+ 441 0046 0028     		cmp	r0, #0
+ 442 0048 FAD1     		bne	.L36
+ 443              	.L40:
+ 232:../src/cc3000_spi.c **** 	{
+ 233:../src/cc3000_spi.c **** 	}
+ 234:../src/cc3000_spi.c **** 
+ 235:../src/cc3000_spi.c **** 	while(DMA_GetCurrDataCounter(CC3000_SPI_RX_DMA_CHANNEL))
+ 444              		.loc 1 235 0
+ 445 004a 0948     		ldr	r0, .L45+12
+ 446 004c FFF7FEFF 		bl	DMA_GetCurrDataCounter
+ 447              	.LVL32:
+ 448 0050 0028     		cmp	r0, #0
+ 449 0052 FAD1     		bne	.L40
+ 450              	.L39:
+ 236:../src/cc3000_spi.c **** 	{
+ 237:../src/cc3000_spi.c **** 	}
+ 238:../src/cc3000_spi.c **** 
+ 239:../src/cc3000_spi.c **** 	/* Loop until SPI busy */
+ 240:../src/cc3000_spi.c **** 	while (SPI_I2S_GetFlagStatus(CC3000_SPI, SPI_I2S_FLAG_BSY ) != RESET)
+ 451              		.loc 1 240 0
+ 452 0054 0748     		ldr	r0, .L45+16
+ 453 0056 8021     		movs	r1, #128
+ 454 0058 FFF7FEFF 		bl	SPI_I2S_GetFlagStatus
+ 455              	.LVL33:
+ 456 005c 0028     		cmp	r0, #0
+ 457 005e F9D1     		bne	.L39
+ 241:../src/cc3000_spi.c **** 	{
+ 242:../src/cc3000_spi.c **** 	}
+ 243:../src/cc3000_spi.c **** }
+ 458              		.loc 1 243 0
+ 459 0060 70BD     		pop	{r4, r5, r6, pc}
+ 460              	.L46:
+ 461 0062 00BF     		.align	2
+ 462              	.L45:
+ 463 0064 00000000 		.word	.LANCHOR0
+ 464 0068 00000000 		.word	sSpiInformation
+ 465 006c 58000240 		.word	1073872984
+ 466 0070 44000240 		.word	1073872964
+ 467 0074 00380040 		.word	1073756160
+ 468              		.cfi_endproc
+ 469              	.LFE65:
+ 471              		.section	.text.SpiWriteAsync,"ax",%progbits
+ 472              		.align	1
+ 473              		.global	SpiWriteAsync
+ 474              		.thumb
+ 475              		.thumb_func
+ 477              	SpiWriteAsync:
+ 478              	.LFB63:
+ 146:../src/cc3000_spi.c **** {
+ 479              		.loc 1 146 0
+ 480              		.cfi_startproc
+ 481              		@ args = 0, pretend = 0, frame = 0
+ 482              		@ frame_needed = 0, uses_anonymous_args = 0
+ 483              		@ link register save eliminated.
+ 484              	.LVL34:
+ 146:../src/cc3000_spi.c **** {
+ 485              		.loc 1 146 0
+ 486 0000 0346     		mov	r3, r0
+ 487 0002 0A46     		mov	r2, r1
+ 150:../src/cc3000_spi.c **** 	SpiReadWriteString(FALSE, data, size);
+ 488              		.loc 1 150 0
+ 489 0004 0020     		movs	r0, #0
+ 490              	.LVL35:
+ 491 0006 1946     		mov	r1, r3
+ 492              	.LVL36:
+ 151:../src/cc3000_spi.c **** }
+ 493              		.loc 1 151 0
+ 150:../src/cc3000_spi.c **** 	SpiReadWriteString(FALSE, data, size);
+ 494              		.loc 1 150 0
+ 495 0008 FFF7FEBF 		b	SpiReadWriteString
+ 496              	.LVL37:
+ 497              		.cfi_endproc
+ 498              	.LFE63:
+ 500              		.section	.text.SpiFirstWrite,"ax",%progbits
+ 501              		.align	1
+ 502              		.global	SpiFirstWrite
+ 503              		.thumb
+ 504              		.thumb_func
+ 506              	SpiFirstWrite:
+ 507              	.LFB66:
+ 244:../src/cc3000_spi.c **** 
+ 245:../src/cc3000_spi.c **** /**
+ 246:../src/cc3000_spi.c ****  * @brief  Sends header information to CC3000
+ 247:../src/cc3000_spi.c ****  * @param  None
+ 248:../src/cc3000_spi.c ****  * @retval None
+ 249:../src/cc3000_spi.c ****  */
+ 250:../src/cc3000_spi.c **** long SpiFirstWrite(unsigned char *ucBuf, unsigned short usLength)
+ 251:../src/cc3000_spi.c **** {
+ 508              		.loc 1 251 0
+ 509              		.cfi_startproc
+ 510              		@ args = 0, pretend = 0, frame = 0
+ 511              		@ frame_needed = 0, uses_anonymous_args = 0
+ 512              	.LVL38:
+ 513 0000 70B5     		push	{r4, r5, r6, lr}
+ 514              	.LCFI5:
+ 515              		.cfi_def_cfa_offset 16
+ 516              		.cfi_offset 4, -16
+ 517              		.cfi_offset 5, -12
+ 518              		.cfi_offset 6, -8
+ 519              		.cfi_offset 14, -4
+ 252:../src/cc3000_spi.c **** 	//
+ 253:../src/cc3000_spi.c **** 	// workaround for first transaction
+ 254:../src/cc3000_spi.c **** 	//
+ 255:../src/cc3000_spi.c **** 	ASSERT_CS();
+ 520              		.loc 1 255 0
+ 521 0002 0E4D     		ldr	r5, .L49
+ 251:../src/cc3000_spi.c **** {
+ 522              		.loc 1 251 0
+ 523 0004 0446     		mov	r4, r0
+ 524 0006 0E46     		mov	r6, r1
+ 525              		.loc 1 255 0
+ 526 0008 2846     		mov	r0, r5
+ 527              	.LVL39:
+ 528 000a 4FF48051 		mov	r1, #4096
+ 529              	.LVL40:
+ 530 000e FFF7FEFF 		bl	GPIO_ResetBits
+ 531              	.LVL41:
+ 256:../src/cc3000_spi.c **** 
+ 257:../src/cc3000_spi.c **** 	//SPI writes first 4 bytes of data
+ 258:../src/cc3000_spi.c **** 	SpiReadWriteString(FALSE, ucBuf, 4);
+ 532              		.loc 1 258 0
+ 533 0012 0020     		movs	r0, #0
+ 534 0014 2146     		mov	r1, r4
+ 535 0016 0422     		movs	r2, #4
+ 536 0018 FFF7FEFF 		bl	SpiReadWriteString
+ 537              	.LVL42:
+ 259:../src/cc3000_spi.c **** 	//SPI writes next 4 bytes of data
+ 260:../src/cc3000_spi.c **** 	SpiReadWriteString(FALSE, ucBuf + 4, usLength - 4);
+ 538              		.loc 1 260 0
+ 539 001c 0020     		movs	r0, #0
+ 540 001e 211D     		adds	r1, r4, #4
+ 541 0020 321F     		subs	r2, r6, #4
+ 542 0022 FFF7FEFF 		bl	SpiReadWriteString
+ 543              	.LVL43:
+ 261:../src/cc3000_spi.c **** 
+ 262:../src/cc3000_spi.c **** 	// From this point on - operate in a regular way
+ 263:../src/cc3000_spi.c **** 	sSpiInformation.ulSpiState = eSPI_STATE_IDLE;
+ 544              		.loc 1 263 0
+ 545 0026 064B     		ldr	r3, .L49+4
+ 546 0028 0222     		movs	r2, #2
+ 264:../src/cc3000_spi.c **** 
+ 265:../src/cc3000_spi.c **** 	DEASSERT_CS();
+ 547              		.loc 1 265 0
+ 548 002a 2846     		mov	r0, r5
+ 549 002c 4FF48051 		mov	r1, #4096
+ 263:../src/cc3000_spi.c **** 	sSpiInformation.ulSpiState = eSPI_STATE_IDLE;
+ 550              		.loc 1 263 0
+ 551 0030 9A60     		str	r2, [r3, #8]
+ 552              		.loc 1 265 0
+ 553 0032 FFF7FEFF 		bl	GPIO_SetBits
+ 554              	.LVL44:
+ 266:../src/cc3000_spi.c **** 	return (0);
+ 267:../src/cc3000_spi.c **** }
+ 555              		.loc 1 267 0
+ 556 0036 0020     		movs	r0, #0
+ 557 0038 70BD     		pop	{r4, r5, r6, pc}
+ 558              	.L50:
+ 559 003a 00BF     		.align	2
+ 560              	.L49:
+ 561 003c 000C0140 		.word	1073810432
+ 562 0040 00000000 		.word	sSpiInformation
+ 563              		.cfi_endproc
+ 564              	.LFE66:
+ 566              		.section	.text.SpiWrite,"ax",%progbits
+ 567              		.align	1
+ 568              		.global	SpiWrite
+ 569              		.thumb
+ 570              		.thumb_func
+ 572              	SpiWrite:
+ 573              	.LFB67:
+ 268:../src/cc3000_spi.c **** 
+ 269:../src/cc3000_spi.c **** /**
+ 270:../src/cc3000_spi.c ****  * @brief  Writes data over SPI  transport link to CC3000
+ 271:../src/cc3000_spi.c ****  * @param  pUserBuffer: pointer to data
+ 272:../src/cc3000_spi.c ****  * @param usLength: length of data that will be sent to CC3000
+ 273:../src/cc3000_spi.c ****  * @retval None
+ 274:../src/cc3000_spi.c ****  */
+ 275:../src/cc3000_spi.c **** long SpiWrite(unsigned char *pUserBuffer, unsigned short usLength)
+ 276:../src/cc3000_spi.c **** {
+ 574              		.loc 1 276 0
+ 575              		.cfi_startproc
+ 576              		@ args = 0, pretend = 0, frame = 0
+ 577              		@ frame_needed = 0, uses_anonymous_args = 0
+ 578              	.LVL45:
+ 579 0000 70B5     		push	{r4, r5, r6, lr}
+ 580              	.LCFI6:
+ 581              		.cfi_def_cfa_offset 16
+ 582              		.cfi_offset 4, -16
+ 583              		.cfi_offset 5, -12
+ 584              		.cfi_offset 6, -8
+ 585              		.cfi_offset 14, -4
+ 277:../src/cc3000_spi.c **** 	unsigned char ucPad = 0;
+ 278:../src/cc3000_spi.c **** 	//
+ 279:../src/cc3000_spi.c **** 	// Figure out the total length of the packet in order to figure out if there is padding or not
+ 280:../src/cc3000_spi.c **** 	//
+ 281:../src/cc3000_spi.c **** 	if (!(usLength & 0x0001))
+ 586              		.loc 1 281 0
+ 587 0002 01F00106 		and	r6, r1, #1
+ 276:../src/cc3000_spi.c **** {
+ 588              		.loc 1 276 0
+ 589 0006 0446     		mov	r4, r0
+ 590              		.loc 1 281 0
+ 591 0008 86F00100 		eor	r0, r6, #1
+ 592              	.LVL46:
+ 282:../src/cc3000_spi.c **** 	{
+ 283:../src/cc3000_spi.c **** 		ucPad++;
+ 284:../src/cc3000_spi.c **** 	}
+ 285:../src/cc3000_spi.c **** 
+ 286:../src/cc3000_spi.c **** 	pUserBuffer[0] = WRITE;
+ 287:../src/cc3000_spi.c **** 	pUserBuffer[1] = HI(usLength + ucPad);
+ 593              		.loc 1 287 0
+ 594 000c 0D18     		adds	r5, r1, r0
+ 286:../src/cc3000_spi.c **** 	pUserBuffer[0] = WRITE;
+ 595              		.loc 1 286 0
+ 596 000e 0123     		movs	r3, #1
+ 288:../src/cc3000_spi.c **** 	pUserBuffer[2] = LO(usLength + ucPad);
+ 289:../src/cc3000_spi.c **** 	pUserBuffer[3] = 0;
+ 597              		.loc 1 289 0
+ 598 0010 0026     		movs	r6, #0
+ 286:../src/cc3000_spi.c **** 	pUserBuffer[0] = WRITE;
+ 599              		.loc 1 286 0
+ 600 0012 2370     		strb	r3, [r4, #0]
+ 287:../src/cc3000_spi.c **** 	pUserBuffer[1] = HI(usLength + ucPad);
+ 601              		.loc 1 287 0
+ 602 0014 C5F30722 		ubfx	r2, r5, #8, #8
+ 290:../src/cc3000_spi.c **** 	pUserBuffer[4] = 0;
+ 291:../src/cc3000_spi.c **** 
+ 292:../src/cc3000_spi.c **** 	usLength += (SPI_HEADER_SIZE + ucPad);
+ 293:../src/cc3000_spi.c **** 
+ 294:../src/cc3000_spi.c **** 	if (sSpiInformation.ulSpiState == eSPI_STATE_POWERUP)
+ 603              		.loc 1 294 0
+ 604 0018 1D4B     		ldr	r3, .L80
+ 289:../src/cc3000_spi.c **** 	pUserBuffer[3] = 0;
+ 605              		.loc 1 289 0
+ 606 001a E670     		strb	r6, [r4, #3]
+ 290:../src/cc3000_spi.c **** 	pUserBuffer[4] = 0;
+ 607              		.loc 1 290 0
+ 608 001c 2671     		strb	r6, [r4, #4]
+ 287:../src/cc3000_spi.c **** 	pUserBuffer[1] = HI(usLength + ucPad);
+ 609              		.loc 1 287 0
+ 610 001e 6270     		strb	r2, [r4, #1]
+ 288:../src/cc3000_spi.c **** 	pUserBuffer[2] = LO(usLength + ucPad);
+ 611              		.loc 1 288 0
+ 612 0020 A570     		strb	r5, [r4, #2]
+ 292:../src/cc3000_spi.c **** 	usLength += (SPI_HEADER_SIZE + ucPad);
+ 613              		.loc 1 292 0
+ 614 0022 0531     		adds	r1, r1, #5
+ 615              	.LVL47:
+ 616              		.loc 1 294 0
+ 617 0024 9D68     		ldr	r5, [r3, #8]
+ 292:../src/cc3000_spi.c **** 	usLength += (SPI_HEADER_SIZE + ucPad);
+ 618              		.loc 1 292 0
+ 619 0026 0818     		adds	r0, r1, r0
+ 620              	.LVL48:
+ 621 0028 86B2     		uxth	r6, r0
+ 622              	.LVL49:
+ 623              		.loc 1 294 0
+ 624 002a 15B9     		cbnz	r5, .L52
+ 625              	.L69:
+ 295:../src/cc3000_spi.c **** 	{
+ 296:../src/cc3000_spi.c **** 		while (sSpiInformation.ulSpiState != eSPI_STATE_INITIALIZED)
+ 626              		.loc 1 296 0
+ 627 002c 9A68     		ldr	r2, [r3, #8]
+ 628 002e 012A     		cmp	r2, #1
+ 629 0030 FCD1     		bne	.L69
+ 630              	.L52:
+ 297:../src/cc3000_spi.c **** 		{
+ 298:../src/cc3000_spi.c **** 		}
+ 299:../src/cc3000_spi.c **** 	}
+ 300:../src/cc3000_spi.c **** 	if (sSpiInformation.ulSpiState == eSPI_STATE_INITIALIZED)
+ 631              		.loc 1 300 0
+ 632 0032 9968     		ldr	r1, [r3, #8]
+ 633              	.LVL50:
+ 634 0034 164D     		ldr	r5, .L80
+ 635 0036 0129     		cmp	r1, #1
+ 636 0038 07D1     		bne	.L68
+ 301:../src/cc3000_spi.c **** 	{
+ 302:../src/cc3000_spi.c **** 
+ 303:../src/cc3000_spi.c **** 		//
+ 304:../src/cc3000_spi.c **** 		// This is time for first TX/RX transactions over SPI: the IRQ is down - so need to send read buf
+ 305:../src/cc3000_spi.c **** 		//
+ 306:../src/cc3000_spi.c **** 		SpiFirstWrite(pUserBuffer, usLength);
+ 637              		.loc 1 306 0
+ 638 003a 2046     		mov	r0, r4
+ 639              	.LVL51:
+ 640 003c 3146     		mov	r1, r6
+ 641 003e FFF7FEFF 		bl	SpiFirstWrite
+ 642              	.LVL52:
+ 643              	.L55:
+ 307:../src/cc3000_spi.c **** 
+ 308:../src/cc3000_spi.c **** 		//
+ 309:../src/cc3000_spi.c **** 		// Due to the fact that we are currently implementing a blocking situation
+ 310:../src/cc3000_spi.c **** 		// here we will wait till end of transaction
+ 311:../src/cc3000_spi.c **** 		//
+ 312:../src/cc3000_spi.c **** 		while (eSPI_STATE_IDLE != sSpiInformation.ulSpiState)
+ 644              		.loc 1 312 0 discriminator 1
+ 645 0042 AA68     		ldr	r2, [r5, #8]
+ 646 0044 022A     		cmp	r2, #2
+ 647 0046 FCD1     		bne	.L55
+ 648 0048 1FE0     		b	.L79
+ 649              	.L68:
+ 313:../src/cc3000_spi.c **** 		{
+ 314:../src/cc3000_spi.c **** 		}
+ 315:../src/cc3000_spi.c **** 	}
+ 316:../src/cc3000_spi.c **** 	else
+ 317:../src/cc3000_spi.c **** 	{
+ 318:../src/cc3000_spi.c **** 
+ 319:../src/cc3000_spi.c **** 		//
+ 320:../src/cc3000_spi.c **** 		// We need to prevent here race that can occur in case 2 back to back packets are sent to the
+ 321:../src/cc3000_spi.c **** 		// device, so the state will move to IDLE and once again to not IDLE due to IRQ
+ 322:../src/cc3000_spi.c **** 		//
+ 323:../src/cc3000_spi.c **** 		while (sSpiInformation.ulSpiState != eSPI_STATE_IDLE)
+ 650              		.loc 1 323 0
+ 651 004a A868     		ldr	r0, [r5, #8]
+ 652 004c 0228     		cmp	r0, #2
+ 653 004e FCD1     		bne	.L68
+ 654              	.L67:
+ 324:../src/cc3000_spi.c **** 		{
+ 325:../src/cc3000_spi.c **** 		}
+ 326:../src/cc3000_spi.c **** 
+ 327:../src/cc3000_spi.c **** 		/* Loop until SPI busy */
+ 328:../src/cc3000_spi.c **** 		while (SPI_I2S_GetFlagStatus(CC3000_SPI, SPI_I2S_FLAG_BSY ) != RESET)
+ 655              		.loc 1 328 0
+ 656 0050 1048     		ldr	r0, .L80+4
+ 657 0052 8021     		movs	r1, #128
+ 658 0054 FFF7FEFF 		bl	SPI_I2S_GetFlagStatus
+ 659              	.LVL53:
+ 660 0058 0028     		cmp	r0, #0
+ 661 005a F9D1     		bne	.L67
+ 662              	.L66:
+ 329:../src/cc3000_spi.c **** 		{
+ 330:../src/cc3000_spi.c **** 		}
+ 331:../src/cc3000_spi.c **** 
+ 332:../src/cc3000_spi.c **** 		//SysCtlDelay(9000000);
+ 333:../src/cc3000_spi.c **** 
+ 334:../src/cc3000_spi.c **** 		while (!tSLInformation.ReadWlanInterruptPin())
+ 663              		.loc 1 334 0
+ 664 005c 0E4B     		ldr	r3, .L80+8
+ 665 005e DD69     		ldr	r5, [r3, #28]
+ 666 0060 A847     		blx	r5
+ 667              	.LVL54:
+ 668 0062 0028     		cmp	r0, #0
+ 669 0064 FAD0     		beq	.L66
+ 335:../src/cc3000_spi.c **** 		{
+ 336:../src/cc3000_spi.c **** 		}
+ 337:../src/cc3000_spi.c **** 
+ 338:../src/cc3000_spi.c **** 		sSpiInformation.ulSpiState = eSPI_STATE_WRITE_IRQ;
+ 670              		.loc 1 338 0
+ 671 0066 0A4D     		ldr	r5, .L80
+ 672 0068 0322     		movs	r2, #3
+ 339:../src/cc3000_spi.c **** 		sSpiInformation.pTxPacket = pUserBuffer;
+ 340:../src/cc3000_spi.c **** 		sSpiInformation.usTxPacketLength = usLength;
+ 341:../src/cc3000_spi.c **** 
+ 342:../src/cc3000_spi.c **** 		//
+ 343:../src/cc3000_spi.c **** 		// Assert the CS line and wait till IRQ line is active and then initialize write operation
+ 344:../src/cc3000_spi.c **** 		//
+ 345:../src/cc3000_spi.c **** 		ASSERT_CS();
+ 673              		.loc 1 345 0
+ 674 006a 0C48     		ldr	r0, .L80+12
+ 675 006c 4FF48051 		mov	r1, #4096
+ 338:../src/cc3000_spi.c **** 		sSpiInformation.ulSpiState = eSPI_STATE_WRITE_IRQ;
+ 676              		.loc 1 338 0
+ 677 0070 AA60     		str	r2, [r5, #8]
+ 339:../src/cc3000_spi.c **** 		sSpiInformation.pTxPacket = pUserBuffer;
+ 678              		.loc 1 339 0
+ 679 0072 EC60     		str	r4, [r5, #12]
+ 340:../src/cc3000_spi.c **** 		sSpiInformation.usTxPacketLength = usLength;
+ 680              		.loc 1 340 0
+ 681 0074 AE80     		strh	r6, [r5, #4]	@ movhi
+ 682              		.loc 1 345 0
+ 683 0076 FFF7FEFF 		bl	GPIO_ResetBits
+ 684              	.LVL55:
+ 685              	.L58:
+ 346:../src/cc3000_spi.c **** 
+ 347:../src/cc3000_spi.c **** 		//SysCtlDelay(90000);
+ 348:../src/cc3000_spi.c **** 
+ 349:../src/cc3000_spi.c **** 		while (!tSLInformation.ReadWlanInterruptPin())
+ 686              		.loc 1 349 0 discriminator 1
+ 687 007a 0749     		ldr	r1, .L80+8
+ 688 007c C869     		ldr	r0, [r1, #28]
+ 689 007e 8047     		blx	r0
+ 690              	.LVL56:
+ 691 0080 0028     		cmp	r0, #0
+ 692 0082 FAD0     		beq	.L58
+ 693              	.L65:
+ 350:../src/cc3000_spi.c **** 		{
+ 351:../src/cc3000_spi.c **** 		}
+ 352:../src/cc3000_spi.c **** 
+ 353:../src/cc3000_spi.c **** 		//
+ 354:../src/cc3000_spi.c **** 		// Due to the fact that we are currently implementing a blocking situation
+ 355:../src/cc3000_spi.c **** 		// here we will wait till end of transaction
+ 356:../src/cc3000_spi.c **** 		//
+ 357:../src/cc3000_spi.c **** 		while (eSPI_STATE_IDLE != sSpiInformation.ulSpiState)
+ 694              		.loc 1 357 0
+ 695 0084 AB68     		ldr	r3, [r5, #8]
+ 696 0086 022B     		cmp	r3, #2
+ 697 0088 FCD1     		bne	.L65
+ 698              	.L79:
+ 358:../src/cc3000_spi.c **** 		{
+ 359:../src/cc3000_spi.c **** 		}
+ 360:../src/cc3000_spi.c **** 	}
+ 361:../src/cc3000_spi.c **** 	return (0);
+ 362:../src/cc3000_spi.c **** }
+ 699              		.loc 1 362 0
+ 700 008a 0020     		movs	r0, #0
+ 701 008c 70BD     		pop	{r4, r5, r6, pc}
+ 702              	.L81:
+ 703 008e 00BF     		.align	2
+ 704              	.L80:
+ 705 0090 00000000 		.word	sSpiInformation
+ 706 0094 00380040 		.word	1073756160
+ 707 0098 00000000 		.word	tSLInformation
+ 708 009c 000C0140 		.word	1073810432
+ 709              		.cfi_endproc
+ 710              	.LFE67:
+ 712              		.section	.text.SpiReadDataCont,"ax",%progbits
+ 713              		.align	1
+ 714              		.global	SpiReadDataCont
+ 715              		.thumb
+ 716              		.thumb_func
+ 718              	SpiReadDataCont:
+ 719              	.LFB68:
+ 363:../src/cc3000_spi.c **** 
+ 364:../src/cc3000_spi.c **** /**
+ 365:../src/cc3000_spi.c ****  * @brief  This function processes received SPI Header and in accordance with it
+ 366:../src/cc3000_spi.c ****  - continues reading the packet
+ 367:../src/cc3000_spi.c **** 
+ 368:../src/cc3000_spi.c ****  * @param  None
+ 369:../src/cc3000_spi.c ****  * @retval None
+ 370:../src/cc3000_spi.c ****  */
+ 371:../src/cc3000_spi.c **** long SpiReadDataCont(void)
+ 372:../src/cc3000_spi.c **** {
+ 720              		.loc 1 372 0
+ 721              		.cfi_startproc
+ 722              		@ args = 0, pretend = 0, frame = 0
+ 723              		@ frame_needed = 0, uses_anonymous_args = 0
+ 724 0000 70B5     		push	{r4, r5, r6, lr}
+ 725              	.LCFI7:
+ 726              		.cfi_def_cfa_offset 16
+ 727              		.cfi_offset 4, -16
+ 728              		.cfi_offset 5, -12
+ 729              		.cfi_offset 6, -8
+ 730              		.cfi_offset 14, -4
+ 373:../src/cc3000_spi.c **** 	long data_to_recv;
+ 374:../src/cc3000_spi.c **** 
+ 375:../src/cc3000_spi.c **** 	unsigned char *evnt_buff, type;
+ 376:../src/cc3000_spi.c **** 
+ 377:../src/cc3000_spi.c **** 	//
+ 378:../src/cc3000_spi.c **** 	//determine what type of packet we have
+ 379:../src/cc3000_spi.c **** 	//
+ 380:../src/cc3000_spi.c **** 	evnt_buff = sSpiInformation.pRxPacket;
+ 731              		.loc 1 380 0
+ 732 0002 184E     		ldr	r6, .L105
+ 733 0004 3569     		ldr	r5, [r6, #16]
+ 734              	.LVL57:
+ 381:../src/cc3000_spi.c **** 	data_to_recv = 0;
+ 382:../src/cc3000_spi.c **** 	STREAM_TO_UINT8((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_PACKET_TYPE_OFFSET, type);
+ 383:../src/cc3000_spi.c **** 
+ 384:../src/cc3000_spi.c **** 	switch (type)
+ 735              		.loc 1 384 0
+ 736 0006 6B79     		ldrb	r3, [r5, #5]	@ zero_extendqisi2
+ 737 0008 022B     		cmp	r3, #2
+ 738 000a 08D0     		beq	.L84
+ 739 000c 042B     		cmp	r3, #4
+ 740 000e 25D1     		bne	.L101
+ 385:../src/cc3000_spi.c **** 	{
+ 386:../src/cc3000_spi.c **** 		case HCI_TYPE_DATA:
+ 387:../src/cc3000_spi.c **** 		{
+ 388:../src/cc3000_spi.c **** 			STREAM_TO_UINT16((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_DATA_LENGTH_OFFSET, data_to_recv);
+ 389:../src/cc3000_spi.c **** 
+ 390:../src/cc3000_spi.c **** 			if (data_to_recv >= SPI_WINDOW_SIZE)
+ 391:../src/cc3000_spi.c **** 			{
+ 392:../src/cc3000_spi.c **** 				data_to_recv = eSPI_STATE_READ_FIRST_PORTION;
+ 393:../src/cc3000_spi.c **** 				SpiReadData(evnt_buff + 10, SPI_WINDOW_SIZE);
+ 394:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_READ_FIRST_PORTION;
+ 395:../src/cc3000_spi.c **** 			}
+ 396:../src/cc3000_spi.c **** 			else
+ 397:../src/cc3000_spi.c **** 			{
+ 398:../src/cc3000_spi.c **** 				//
+ 399:../src/cc3000_spi.c **** 				// We need to read the rest of data..
+ 400:../src/cc3000_spi.c **** 				//
+ 401:../src/cc3000_spi.c **** 				if (!((HEADERS_SIZE_EVNT + data_to_recv) & 1))
+ 402:../src/cc3000_spi.c **** 				{
+ 403:../src/cc3000_spi.c **** 					data_to_recv++;
+ 404:../src/cc3000_spi.c **** 				}
+ 405:../src/cc3000_spi.c **** 
+ 406:../src/cc3000_spi.c **** 				if (data_to_recv)
+ 407:../src/cc3000_spi.c **** 				{
+ 408:../src/cc3000_spi.c **** 					SpiReadData(evnt_buff + 10, data_to_recv);
+ 409:../src/cc3000_spi.c **** 				}
+ 410:../src/cc3000_spi.c **** 
+ 411:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_READ_EOT;
+ 412:../src/cc3000_spi.c **** 			}
+ 413:../src/cc3000_spi.c **** 			break;
+ 414:../src/cc3000_spi.c **** 		}
+ 415:../src/cc3000_spi.c **** 		case HCI_TYPE_EVNT:
+ 416:../src/cc3000_spi.c **** 		{
+ 417:../src/cc3000_spi.c **** 			//
+ 418:../src/cc3000_spi.c **** 			// Calculate the rest length of the data
+ 419:../src/cc3000_spi.c **** 			//
+ 420:../src/cc3000_spi.c **** 			STREAM_TO_UINT8((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_EVENT_LENGTH_OFFSET, data_to_recv);
+ 741              		.loc 1 420 0
+ 742 0010 287A     		ldrb	r0, [r5, #8]	@ zero_extendqisi2
+ 743              	.LVL58:
+ 421:../src/cc3000_spi.c **** 			data_to_recv -= 1;
+ 744              		.loc 1 421 0
+ 745 0012 441E     		subs	r4, r0, #1
+ 746              	.LVL59:
+ 422:../src/cc3000_spi.c **** 
+ 423:../src/cc3000_spi.c **** 			//
+ 424:../src/cc3000_spi.c **** 			// Add padding byte if needed
+ 425:../src/cc3000_spi.c **** 			//
+ 426:../src/cc3000_spi.c **** 			if ((HEADERS_SIZE_EVNT + data_to_recv) & 1)
+ 427:../src/cc3000_spi.c **** 			{
+ 428:../src/cc3000_spi.c **** 
+ 429:../src/cc3000_spi.c **** 				data_to_recv++;
+ 747              		.loc 1 429 0
+ 748 0014 14F0010F 		tst	r4, #1
+ 749 0018 18BF     		it	ne
+ 750 001a 0446     		movne	r4, r0
+ 751 001c 14E0     		b	.L104
+ 752              	.LVL60:
+ 753              	.L84:
+ 388:../src/cc3000_spi.c **** 			STREAM_TO_UINT16((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_DATA_LENGTH_OFFSET, data_to_recv);
+ 754              		.loc 1 388 0
+ 755 001e 681D     		adds	r0, r5, #5
+ 756 0020 0321     		movs	r1, #3
+ 757 0022 FFF7FEFF 		bl	STREAM_TO_UINT16_f
+ 758              	.LVL61:
+ 390:../src/cc3000_spi.c **** 			if (data_to_recv >= SPI_WINDOW_SIZE)
+ 759              		.loc 1 390 0
+ 760 0026 B0F5806F 		cmp	r0, #1024
+ 388:../src/cc3000_spi.c **** 			STREAM_TO_UINT16((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_DATA_LENGTH_OFFSET, data_to_recv);
+ 761              		.loc 1 388 0
+ 762 002a 0446     		mov	r4, r0
+ 763              	.LVL62:
+ 390:../src/cc3000_spi.c **** 			if (data_to_recv >= SPI_WINDOW_SIZE)
+ 764              		.loc 1 390 0
+ 765 002c 08DB     		blt	.L86
+ 766              	.LVL63:
+ 393:../src/cc3000_spi.c **** 				SpiReadData(evnt_buff + 10, SPI_WINDOW_SIZE);
+ 767              		.loc 1 393 0
+ 768 002e 05F10A00 		add	r0, r5, #10
+ 769 0032 4FF48061 		mov	r1, #1024
+ 394:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_READ_FIRST_PORTION;
+ 770              		.loc 1 394 0
+ 771 0036 0724     		movs	r4, #7
+ 393:../src/cc3000_spi.c **** 				SpiReadData(evnt_buff + 10, SPI_WINDOW_SIZE);
+ 772              		.loc 1 393 0
+ 773 0038 FFF7FEFF 		bl	SpiReadData
+ 774              	.LVL64:
+ 394:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_READ_FIRST_PORTION;
+ 775              		.loc 1 394 0
+ 776 003c B460     		str	r4, [r6, #8]
+ 777 003e 0EE0     		b	.L83
+ 778              	.LVL65:
+ 779              	.L86:
+ 401:../src/cc3000_spi.c **** 				if (!((HEADERS_SIZE_EVNT + data_to_recv) & 1))
+ 780              		.loc 1 401 0
+ 781 0040 C307     		lsls	r3, r0, #31
+ 782 0042 01D4     		bmi	.L104
+ 403:../src/cc3000_spi.c **** 					data_to_recv++;
+ 783              		.loc 1 403 0
+ 784 0044 441C     		adds	r4, r0, #1
+ 785              	.LVL66:
+ 786 0046 00E0     		b	.L102
+ 787              	.LVL67:
+ 788              	.L104:
+ 430:../src/cc3000_spi.c **** 			}
+ 431:../src/cc3000_spi.c **** 
+ 432:../src/cc3000_spi.c **** 			if (data_to_recv)
+ 789              		.loc 1 432 0
+ 790 0048 24B1     		cbz	r4, .L91
+ 791              	.L102:
+ 433:../src/cc3000_spi.c **** 			{
+ 434:../src/cc3000_spi.c **** 				SpiReadData(evnt_buff + 10, data_to_recv);
+ 792              		.loc 1 434 0
+ 793 004a 05F10A00 		add	r0, r5, #10
+ 794 004e A1B2     		uxth	r1, r4
+ 795 0050 FFF7FEFF 		bl	SpiReadData
+ 796              	.LVL68:
+ 797              	.L91:
+ 435:../src/cc3000_spi.c **** 			}
+ 436:../src/cc3000_spi.c **** 
+ 437:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_READ_EOT;
+ 798              		.loc 1 437 0
+ 799 0054 0349     		ldr	r1, .L105
+ 800 0056 0822     		movs	r2, #8
+ 801 0058 8A60     		str	r2, [r1, #8]
+ 438:../src/cc3000_spi.c **** 			break;
+ 802              		.loc 1 438 0
+ 803 005a 00E0     		b	.L83
+ 804              	.LVL69:
+ 805              	.L101:
+ 381:../src/cc3000_spi.c **** 	data_to_recv = 0;
+ 806              		.loc 1 381 0
+ 807 005c 0024     		movs	r4, #0
+ 808              	.LVL70:
+ 809              	.L83:
+ 439:../src/cc3000_spi.c **** 		}
+ 440:../src/cc3000_spi.c **** 	}
+ 441:../src/cc3000_spi.c **** 
+ 442:../src/cc3000_spi.c **** 	return (data_to_recv);
+ 443:../src/cc3000_spi.c **** }
+ 810              		.loc 1 443 0
+ 811 005e 2046     		mov	r0, r4
+ 812 0060 70BD     		pop	{r4, r5, r6, pc}
+ 813              	.L106:
+ 814 0062 00BF     		.align	2
+ 815              	.L105:
+ 816 0064 00000000 		.word	sSpiInformation
+ 817              		.cfi_endproc
+ 818              	.LFE68:
+ 820              		.section	.text.SpiReadHeader,"ax",%progbits
+ 821              		.align	1
+ 822              		.global	SpiReadHeader
+ 823              		.thumb
+ 824              		.thumb_func
+ 826              	SpiReadHeader:
+ 827              	.LFB69:
+ 444:../src/cc3000_spi.c **** 
+ 445:../src/cc3000_spi.c **** /**
+ 446:../src/cc3000_spi.c ****  * @brief  This function enter point for read flow: first we read minimal
+ 447:../src/cc3000_spi.c ****  5 SPI header bytes and 5 Event Data bytes
+ 448:../src/cc3000_spi.c **** 
+ 449:../src/cc3000_spi.c ****  * @param  None
+ 450:../src/cc3000_spi.c ****  * @retval None
+ 451:../src/cc3000_spi.c ****  */
+ 452:../src/cc3000_spi.c **** void SpiReadHeader(void)
+ 453:../src/cc3000_spi.c **** {
+ 828              		.loc 1 453 0
+ 829              		.cfi_startproc
+ 830              		@ args = 0, pretend = 0, frame = 0
+ 831              		@ frame_needed = 0, uses_anonymous_args = 0
+ 832              		@ link register save eliminated.
+ 454:../src/cc3000_spi.c **** 	SpiReadWriteStringInt(TRUE, sSpiInformation.pRxPacket, 10);
+ 833              		.loc 1 454 0
+ 834 0000 024B     		ldr	r3, .L108
+ 835 0002 0120     		movs	r0, #1
+ 836 0004 1969     		ldr	r1, [r3, #16]
+ 837 0006 0A22     		movs	r2, #10
+ 455:../src/cc3000_spi.c **** }
+ 838              		.loc 1 455 0
+ 454:../src/cc3000_spi.c **** 	SpiReadWriteStringInt(TRUE, sSpiInformation.pRxPacket, 10);
+ 839              		.loc 1 454 0
+ 840 0008 FFF7FEBF 		b	SpiReadWriteStringInt
+ 841              	.LVL71:
+ 842              	.L109:
+ 843              		.align	2
+ 844              	.L108:
+ 845 000c 00000000 		.word	sSpiInformation
+ 846              		.cfi_endproc
+ 847              	.LFE69:
+ 849              		.section	.text.SpiContReadOperation,"ax",%progbits
+ 850              		.align	1
+ 851              		.global	SpiContReadOperation
+ 852              		.thumb
+ 853              		.thumb_func
+ 855              	SpiContReadOperation:
+ 856              	.LFB70:
+ 456:../src/cc3000_spi.c **** 
+ 457:../src/cc3000_spi.c **** /**
+ 458:../src/cc3000_spi.c ****  * @brief  Determine if all data was read if so end the data exchange
+ 459:../src/cc3000_spi.c ****  * @param  None
+ 460:../src/cc3000_spi.c ****  * @retval None
+ 461:../src/cc3000_spi.c ****  */
+ 462:../src/cc3000_spi.c **** void SpiContReadOperation(void)
+ 463:../src/cc3000_spi.c **** {
+ 857              		.loc 1 463 0
+ 858              		.cfi_startproc
+ 859              		@ args = 0, pretend = 0, frame = 0
+ 860              		@ frame_needed = 0, uses_anonymous_args = 0
+ 861 0000 08B5     		push	{r3, lr}
+ 862              	.LCFI8:
+ 863              		.cfi_def_cfa_offset 8
+ 864              		.cfi_offset 3, -8
+ 865              		.cfi_offset 14, -4
+ 464:../src/cc3000_spi.c **** 	//
+ 465:../src/cc3000_spi.c **** 	// The header was read - continue with  the payload read
+ 466:../src/cc3000_spi.c **** 	//
+ 467:../src/cc3000_spi.c **** 	if (!SpiReadDataCont())
+ 866              		.loc 1 467 0
+ 867 0002 FFF7FEFF 		bl	SpiReadDataCont
+ 868              	.LVL72:
+ 869 0006 18B9     		cbnz	r0, .L110
+ 468:../src/cc3000_spi.c **** 	{
+ 469:../src/cc3000_spi.c **** 		//
+ 470:../src/cc3000_spi.c **** 		// All the data was read - finalize handling by switching to teh task
+ 471:../src/cc3000_spi.c **** 		//	and calling from task Event Handler
+ 472:../src/cc3000_spi.c **** 		//
+ 473:../src/cc3000_spi.c **** 		SpiTriggerRxProcessing();
+ 474:../src/cc3000_spi.c **** 	}
+ 475:../src/cc3000_spi.c **** }
+ 870              		.loc 1 475 0
+ 871 0008 BDE80840 		pop	{r3, lr}
+ 473:../src/cc3000_spi.c **** 		SpiTriggerRxProcessing();
+ 872              		.loc 1 473 0
+ 873 000c FFF7FEBF 		b	SpiTriggerRxProcessing
+ 874              	.LVL73:
+ 875              	.L110:
+ 876 0010 08BD     		pop	{r3, pc}
+ 877              		.cfi_endproc
+ 878              	.LFE70:
+ 880              		.section	.text.SPI_DMA_IntHandler,"ax",%progbits
+ 881              		.align	1
+ 882              		.global	SPI_DMA_IntHandler
+ 883              		.thumb
+ 884              		.thumb_func
+ 886              	SPI_DMA_IntHandler:
+ 887              	.LFB71:
+ 476:../src/cc3000_spi.c **** 
+ 477:../src/cc3000_spi.c **** /**
+ 478:../src/cc3000_spi.c ****  * @brief  The handler for Interrupt that is generated on SPI at the end of DMA
+ 479:../src/cc3000_spi.c ****  transfer.
+ 480:../src/cc3000_spi.c ****  * @param  None
+ 481:../src/cc3000_spi.c ****  * @retval None
+ 482:../src/cc3000_spi.c ****  */
+ 483:../src/cc3000_spi.c **** void SPI_DMA_IntHandler(void)
+ 484:../src/cc3000_spi.c **** {
+ 888              		.loc 1 484 0
+ 889              		.cfi_startproc
+ 890              		@ args = 0, pretend = 0, frame = 0
+ 891              		@ frame_needed = 0, uses_anonymous_args = 0
+ 892 0000 70B5     		push	{r4, r5, r6, lr}
+ 893              	.LCFI9:
+ 894              		.cfi_def_cfa_offset 16
+ 895              		.cfi_offset 4, -16
+ 896              		.cfi_offset 5, -12
+ 897              		.cfi_offset 6, -8
+ 898              		.cfi_offset 14, -4
+ 485:../src/cc3000_spi.c **** 	unsigned long ucTxFinished, ucRxFinished;
+ 486:../src/cc3000_spi.c **** 	unsigned short data_to_recv;
+ 487:../src/cc3000_spi.c **** 	unsigned char *evnt_buff;
+ 488:../src/cc3000_spi.c **** 
+ 489:../src/cc3000_spi.c **** 	evnt_buff = sSpiInformation.pRxPacket;
+ 899              		.loc 1 489 0
+ 900 0002 384C     		ldr	r4, .L140
+ 490:../src/cc3000_spi.c **** 	data_to_recv = 0;
+ 491:../src/cc3000_spi.c **** 
+ 492:../src/cc3000_spi.c **** 	ucTxFinished = DMA_GetFlagStatus(CC3000_SPI_TX_DMA_TCFLAG );
+ 901              		.loc 1 492 0
+ 902 0004 4FF40030 		mov	r0, #131072
+ 489:../src/cc3000_spi.c **** 	evnt_buff = sSpiInformation.pRxPacket;
+ 903              		.loc 1 489 0
+ 904 0008 2669     		ldr	r6, [r4, #16]
+ 905              	.LVL74:
+ 906              		.loc 1 492 0
+ 907 000a FFF7FEFF 		bl	DMA_GetFlagStatus
+ 908              	.LVL75:
+ 909 000e 0546     		mov	r5, r0
+ 910              	.LVL76:
+ 493:../src/cc3000_spi.c **** 	ucRxFinished = DMA_GetFlagStatus(CC3000_SPI_RX_DMA_TCFLAG );
+ 911              		.loc 1 493 0
+ 912 0010 4FF40050 		mov	r0, #8192
+ 913              	.LVL77:
+ 914 0014 FFF7FEFF 		bl	DMA_GetFlagStatus
+ 915              	.LVL78:
+ 494:../src/cc3000_spi.c **** 
+ 495:../src/cc3000_spi.c **** 	if (sSpiInformation.ulSpiState == eSPI_STATE_READ_IRQ)
+ 916              		.loc 1 495 0
+ 917 0018 A368     		ldr	r3, [r4, #8]
+ 918 001a 062B     		cmp	r3, #6
+ 919 001c 0BD1     		bne	.L113
+ 496:../src/cc3000_spi.c **** 	{
+ 497:../src/cc3000_spi.c **** 		//
+ 498:../src/cc3000_spi.c **** 		// If one of DMA's still did not finished its operation - we need to stay
+ 499:../src/cc3000_spi.c **** 		// and wait till it will finish
+ 500:../src/cc3000_spi.c **** 		//
+ 501:../src/cc3000_spi.c **** 		if (ucTxFinished && ucRxFinished)
+ 920              		.loc 1 501 0
+ 921 001e 002D     		cmp	r5, #0
+ 922 0020 5ED0     		beq	.L112
+ 923              		.loc 1 501 0 is_stmt 0 discriminator 1
+ 924 0022 0028     		cmp	r0, #0
+ 925 0024 5CD0     		beq	.L112
+ 502:../src/cc3000_spi.c **** 		{
+ 503:../src/cc3000_spi.c **** 			/* Clear SPI_DMA Interrupt Pending Flags */
+ 504:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 926              		.loc 1 504 0 is_stmt 1
+ 927 0026 4FF40830 		mov	r0, #139264
+ 928              	.LVL79:
+ 929 002a FFF7FEFF 		bl	DMA_ClearFlag
+ 930              	.LVL80:
+ 505:../src/cc3000_spi.c **** 
+ 506:../src/cc3000_spi.c **** 			SpiContReadOperation();
+ 507:../src/cc3000_spi.c **** 		}
+ 508:../src/cc3000_spi.c **** 	}
+ 509:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_READ_FIRST_PORTION)
+ 510:../src/cc3000_spi.c **** 	{
+ 511:../src/cc3000_spi.c **** 		if (ucRxFinished)
+ 512:../src/cc3000_spi.c **** 		{
+ 513:../src/cc3000_spi.c **** 			/* Clear SPI_DMA Interrupt Pending Flags */
+ 514:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 515:../src/cc3000_spi.c **** 
+ 516:../src/cc3000_spi.c **** 			STREAM_TO_UINT16((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_DATA_LENGTH_OFFSET, data_to_recv);
+ 517:../src/cc3000_spi.c **** 
+ 518:../src/cc3000_spi.c **** 			//
+ 519:../src/cc3000_spi.c **** 			// Read the last portion of data
+ 520:../src/cc3000_spi.c **** 			//
+ 521:../src/cc3000_spi.c **** 			//
+ 522:../src/cc3000_spi.c **** 			// We need to read the rest of data..
+ 523:../src/cc3000_spi.c **** 			//
+ 524:../src/cc3000_spi.c **** 			data_to_recv -= SPI_WINDOW_SIZE;
+ 525:../src/cc3000_spi.c **** 
+ 526:../src/cc3000_spi.c **** 			if (!((HEADERS_SIZE_EVNT + data_to_recv) & 1))
+ 527:../src/cc3000_spi.c **** 			{
+ 528:../src/cc3000_spi.c **** 				data_to_recv++;
+ 529:../src/cc3000_spi.c **** 			}
+ 530:../src/cc3000_spi.c **** 
+ 531:../src/cc3000_spi.c **** 			SpiReadData(sSpiInformation.pRxPacket + 10 + SPI_WINDOW_SIZE, data_to_recv);
+ 532:../src/cc3000_spi.c **** 
+ 533:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_READ_EOT;
+ 534:../src/cc3000_spi.c **** 		}
+ 535:../src/cc3000_spi.c **** 	}
+ 536:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_READ_EOT)
+ 537:../src/cc3000_spi.c **** 	{
+ 538:../src/cc3000_spi.c **** 		//
+ 539:../src/cc3000_spi.c **** 		// All the data was read - finalize handling by switching to the task
+ 540:../src/cc3000_spi.c **** 		// and calling from task Event Handler
+ 541:../src/cc3000_spi.c **** 		//
+ 542:../src/cc3000_spi.c **** 		if (ucRxFinished)
+ 543:../src/cc3000_spi.c **** 		{
+ 544:../src/cc3000_spi.c **** 			/* Clear SPI_DMA Interrupt Pending Flags */
+ 545:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 546:../src/cc3000_spi.c **** 
+ 547:../src/cc3000_spi.c **** 			SpiTriggerRxProcessing();
+ 548:../src/cc3000_spi.c **** 		}
+ 549:../src/cc3000_spi.c **** 	}
+ 550:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_WRITE_EOT)
+ 551:../src/cc3000_spi.c **** 	{
+ 552:../src/cc3000_spi.c **** 		if (ucTxFinished)
+ 553:../src/cc3000_spi.c **** 		{
+ 554:../src/cc3000_spi.c **** 			/* Loop until SPI busy */
+ 555:../src/cc3000_spi.c **** 			while (SPI_I2S_GetFlagStatus(CC3000_SPI, SPI_I2S_FLAG_BSY ) != RESET)
+ 556:../src/cc3000_spi.c **** 			{
+ 557:../src/cc3000_spi.c **** 			}
+ 558:../src/cc3000_spi.c **** 
+ 559:../src/cc3000_spi.c **** 			/* Clear SPI_DMA Interrupt Pending Flags */
+ 560:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 561:../src/cc3000_spi.c **** 
+ 562:../src/cc3000_spi.c **** 			DEASSERT_CS();
+ 563:../src/cc3000_spi.c **** 
+ 564:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_IDLE;
+ 565:../src/cc3000_spi.c **** 		}
+ 566:../src/cc3000_spi.c **** 	}
+ 567:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_WRITE_FIRST_PORTION)
+ 568:../src/cc3000_spi.c **** 	{
+ 569:../src/cc3000_spi.c **** 		if (ucTxFinished)
+ 570:../src/cc3000_spi.c **** 		{
+ 571:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_WRITE_EOT;
+ 572:../src/cc3000_spi.c **** 			SpiWriteAsync(sSpiInformation.pTxPacket + SPI_WINDOW_SIZE, sSpiInformation.usTxPacketLength - SP
+ 573:../src/cc3000_spi.c **** 		}
+ 574:../src/cc3000_spi.c **** 	}
+ 575:../src/cc3000_spi.c **** }
+ 931              		.loc 1 575 0
+ 932 002e BDE87040 		pop	{r4, r5, r6, lr}
+ 506:../src/cc3000_spi.c **** 			SpiContReadOperation();
+ 933              		.loc 1 506 0
+ 934 0032 FFF7FEBF 		b	SpiContReadOperation
+ 935              	.LVL81:
+ 936              	.L113:
+ 509:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_READ_FIRST_PORTION)
+ 937              		.loc 1 509 0
+ 938 0036 A168     		ldr	r1, [r4, #8]
+ 939 0038 0729     		cmp	r1, #7
+ 940 003a 1BD1     		bne	.L115
+ 511:../src/cc3000_spi.c **** 		if (ucRxFinished)
+ 941              		.loc 1 511 0
+ 942 003c 0028     		cmp	r0, #0
+ 943 003e 4FD0     		beq	.L112
+ 514:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 944              		.loc 1 514 0
+ 945 0040 4FF40830 		mov	r0, #139264
+ 946              	.LVL82:
+ 947 0044 FFF7FEFF 		bl	DMA_ClearFlag
+ 948              	.LVL83:
+ 516:../src/cc3000_spi.c **** 			STREAM_TO_UINT16((char *)(evnt_buff + SPI_HEADER_SIZE), HCI_DATA_LENGTH_OFFSET, data_to_recv);
+ 949              		.loc 1 516 0
+ 950 0048 0321     		movs	r1, #3
+ 951 004a 701D     		adds	r0, r6, #5
+ 952 004c FFF7FEFF 		bl	STREAM_TO_UINT16_f
+ 953              	.LVL84:
+ 524:../src/cc3000_spi.c **** 			data_to_recv -= SPI_WINDOW_SIZE;
+ 954              		.loc 1 524 0
+ 955 0050 A0F58064 		sub	r4, r0, #1024
+ 956 0054 A1B2     		uxth	r1, r4
+ 957              	.LVL85:
+ 531:../src/cc3000_spi.c **** 			SpiReadData(sSpiInformation.pRxPacket + 10 + SPI_WINDOW_SIZE, data_to_recv);
+ 958              		.loc 1 531 0
+ 959 0056 234C     		ldr	r4, .L140
+ 960              	.LVL86:
+ 526:../src/cc3000_spi.c **** 			if (!((HEADERS_SIZE_EVNT + data_to_recv) & 1))
+ 961              		.loc 1 526 0
+ 962 0058 CA07     		lsls	r2, r1, #31
+ 528:../src/cc3000_spi.c **** 				data_to_recv++;
+ 963              		.loc 1 528 0
+ 964 005a 58BF     		it	pl
+ 965 005c A0F2FF31 		subwpl	r1, r0, #1023
+ 966              	.LVL87:
+ 531:../src/cc3000_spi.c **** 			SpiReadData(sSpiInformation.pRxPacket + 10 + SPI_WINDOW_SIZE, data_to_recv);
+ 967              		.loc 1 531 0
+ 968 0060 2069     		ldr	r0, [r4, #16]
+ 969              	.LVL88:
+ 528:../src/cc3000_spi.c **** 				data_to_recv++;
+ 970              		.loc 1 528 0
+ 971 0062 58BF     		it	pl
+ 972 0064 89B2     		uxthpl	r1, r1
+ 973              	.LVL89:
+ 531:../src/cc3000_spi.c **** 			SpiReadData(sSpiInformation.pRxPacket + 10 + SPI_WINDOW_SIZE, data_to_recv);
+ 974              		.loc 1 531 0
+ 975 0066 00F20A40 		addw	r0, r0, #1034
+ 976 006a FFF7FEFF 		bl	SpiReadData
+ 977              	.LVL90:
+ 533:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_READ_EOT;
+ 978              		.loc 1 533 0
+ 979 006e 0823     		movs	r3, #8
+ 980 0070 A360     		str	r3, [r4, #8]
+ 981 0072 70BD     		pop	{r4, r5, r6, pc}
+ 982              	.LVL91:
+ 983              	.L115:
+ 536:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_READ_EOT)
+ 984              		.loc 1 536 0
+ 985 0074 A268     		ldr	r2, [r4, #8]
+ 986 0076 082A     		cmp	r2, #8
+ 987 0078 09D1     		bne	.L117
+ 542:../src/cc3000_spi.c **** 		if (ucRxFinished)
+ 988              		.loc 1 542 0
+ 989 007a 0028     		cmp	r0, #0
+ 990 007c 30D0     		beq	.L112
+ 545:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 991              		.loc 1 545 0
+ 992 007e 4FF40830 		mov	r0, #139264
+ 993              	.LVL92:
+ 994 0082 FFF7FEFF 		bl	DMA_ClearFlag
+ 995              	.LVL93:
+ 996              		.loc 1 575 0
+ 997 0086 BDE87040 		pop	{r4, r5, r6, lr}
+ 547:../src/cc3000_spi.c **** 			SpiTriggerRxProcessing();
+ 998              		.loc 1 547 0
+ 999 008a FFF7FEBF 		b	SpiTriggerRxProcessing
+ 1000              	.LVL94:
+ 1001              	.L117:
+ 550:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_WRITE_EOT)
+ 1002              		.loc 1 550 0
+ 1003 008e A068     		ldr	r0, [r4, #8]
+ 1004              	.LVL95:
+ 1005 0090 0528     		cmp	r0, #5
+ 1006 0092 14D1     		bne	.L118
+ 552:../src/cc3000_spi.c **** 		if (ucTxFinished)
+ 1007              		.loc 1 552 0
+ 1008 0094 002D     		cmp	r5, #0
+ 1009 0096 23D0     		beq	.L112
+ 1010              	.L132:
+ 555:../src/cc3000_spi.c **** 			while (SPI_I2S_GetFlagStatus(CC3000_SPI, SPI_I2S_FLAG_BSY ) != RESET)
+ 1011              		.loc 1 555 0
+ 1012 0098 1348     		ldr	r0, .L140+4
+ 1013 009a 8021     		movs	r1, #128
+ 1014 009c FFF7FEFF 		bl	SPI_I2S_GetFlagStatus
+ 1015              	.LVL96:
+ 1016 00a0 0028     		cmp	r0, #0
+ 1017 00a2 F9D1     		bne	.L132
+ 560:../src/cc3000_spi.c **** 			DMA_ClearFlag(CC3000_SPI_TX_DMA_TCFLAG | CC3000_SPI_RX_DMA_TCFLAG);
+ 1018              		.loc 1 560 0
+ 1019 00a4 4FF40830 		mov	r0, #139264
+ 1020 00a8 FFF7FEFF 		bl	DMA_ClearFlag
+ 1021              	.LVL97:
+ 562:../src/cc3000_spi.c **** 			DEASSERT_CS();
+ 1022              		.loc 1 562 0
+ 1023 00ac 4FF48051 		mov	r1, #4096
+ 1024 00b0 0E48     		ldr	r0, .L140+8
+ 1025 00b2 FFF7FEFF 		bl	GPIO_SetBits
+ 1026              	.LVL98:
+ 564:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_IDLE;
+ 1027              		.loc 1 564 0
+ 1028 00b6 0B4A     		ldr	r2, .L140
+ 1029 00b8 0221     		movs	r1, #2
+ 1030 00ba 9160     		str	r1, [r2, #8]
+ 1031 00bc 70BD     		pop	{r4, r5, r6, pc}
+ 1032              	.L118:
+ 567:../src/cc3000_spi.c **** 	else if (sSpiInformation.ulSpiState == eSPI_STATE_WRITE_FIRST_PORTION)
+ 1033              		.loc 1 567 0
+ 1034 00be A368     		ldr	r3, [r4, #8]
+ 1035 00c0 042B     		cmp	r3, #4
+ 1036 00c2 0DD1     		bne	.L112
+ 569:../src/cc3000_spi.c **** 		if (ucTxFinished)
+ 1037              		.loc 1 569 0
+ 1038 00c4 65B1     		cbz	r5, .L112
+ 572:../src/cc3000_spi.c **** 			SpiWriteAsync(sSpiInformation.pTxPacket + SPI_WINDOW_SIZE, sSpiInformation.usTxPacketLength - SP
+ 1039              		.loc 1 572 0
+ 1040 00c6 A088     		ldrh	r0, [r4, #4]
+ 1041 00c8 E268     		ldr	r2, [r4, #12]
+ 571:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_WRITE_EOT;
+ 1042              		.loc 1 571 0
+ 1043 00ca 0521     		movs	r1, #5
+ 572:../src/cc3000_spi.c **** 			SpiWriteAsync(sSpiInformation.pTxPacket + SPI_WINDOW_SIZE, sSpiInformation.usTxPacketLength - SP
+ 1044              		.loc 1 572 0
+ 1045 00cc A0F58063 		sub	r3, r0, #1024
+ 571:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_WRITE_EOT;
+ 1046              		.loc 1 571 0
+ 1047 00d0 A160     		str	r1, [r4, #8]
+ 572:../src/cc3000_spi.c **** 			SpiWriteAsync(sSpiInformation.pTxPacket + SPI_WINDOW_SIZE, sSpiInformation.usTxPacketLength - SP
+ 1048              		.loc 1 572 0
+ 1049 00d2 02F58060 		add	r0, r2, #1024
+ 1050 00d6 99B2     		uxth	r1, r3
+ 1051              		.loc 1 575 0
+ 1052 00d8 BDE87040 		pop	{r4, r5, r6, lr}
+ 572:../src/cc3000_spi.c **** 			SpiWriteAsync(sSpiInformation.pTxPacket + SPI_WINDOW_SIZE, sSpiInformation.usTxPacketLength - SP
+ 1053              		.loc 1 572 0
+ 1054 00dc FFF7FEBF 		b	SpiWriteAsync
+ 1055              	.LVL99:
+ 1056              	.L112:
+ 1057 00e0 70BD     		pop	{r4, r5, r6, pc}
+ 1058              	.L141:
+ 1059 00e2 00BF     		.align	2
+ 1060              	.L140:
+ 1061 00e4 00000000 		.word	sSpiInformation
+ 1062 00e8 00380040 		.word	1073756160
+ 1063 00ec 000C0140 		.word	1073810432
+ 1064              		.cfi_endproc
+ 1065              	.LFE71:
+ 1067              		.section	.text.SPI_EXTI_IntHandler,"ax",%progbits
+ 1068              		.align	1
+ 1069              		.global	SPI_EXTI_IntHandler
+ 1070              		.thumb
+ 1071              		.thumb_func
+ 1073              	SPI_EXTI_IntHandler:
+ 1074              	.LFB72:
+ 576:../src/cc3000_spi.c **** 
+ 577:../src/cc3000_spi.c **** /**
+ 578:../src/cc3000_spi.c ****  * @brief  The handler for Interrupt that is generated when CC3000 brings the
+ 579:../src/cc3000_spi.c ****  IRQ line low.
+ 580:../src/cc3000_spi.c ****  * @param  None
+ 581:../src/cc3000_spi.c ****  * @retval None
+ 582:../src/cc3000_spi.c ****  */
+ 583:../src/cc3000_spi.c **** void SPI_EXTI_IntHandler(void)
+ 584:../src/cc3000_spi.c **** {
+ 1075              		.loc 1 584 0
+ 1076              		.cfi_startproc
+ 1077              		@ args = 0, pretend = 0, frame = 0
+ 1078              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1079 0000 08B5     		push	{r3, lr}
+ 1080              	.LCFI10:
+ 1081              		.cfi_def_cfa_offset 8
+ 1082              		.cfi_offset 3, -8
+ 1083              		.cfi_offset 14, -4
+ 585:../src/cc3000_spi.c **** 	//Flag is cleared in first ISR handler
+ 586:../src/cc3000_spi.c **** 	if (!tSLInformation.ReadWlanInterruptPin())
+ 1084              		.loc 1 586 0
+ 1085 0002 184B     		ldr	r3, .L147
+ 1086 0004 D869     		ldr	r0, [r3, #28]
+ 1087 0006 8047     		blx	r0
+ 1088              	.LVL100:
+ 1089 0008 0028     		cmp	r0, #0
+ 1090 000a 2AD1     		bne	.L142
+ 587:../src/cc3000_spi.c **** 	{
+ 588:../src/cc3000_spi.c **** 		if (sSpiInformation.ulSpiState == eSPI_STATE_POWERUP)
+ 1091              		.loc 1 588 0
+ 1092 000c 164B     		ldr	r3, .L147+4
+ 1093 000e 9A68     		ldr	r2, [r3, #8]
+ 1094 0010 12B9     		cbnz	r2, .L144
+ 589:../src/cc3000_spi.c **** 		{
+ 590:../src/cc3000_spi.c **** 			/* This means IRQ line was low call a callback of HCI Layer to inform on event */
+ 591:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_INITIALIZED;
+ 1095              		.loc 1 591 0
+ 1096 0012 0120     		movs	r0, #1
+ 1097 0014 9860     		str	r0, [r3, #8]
+ 1098 0016 08BD     		pop	{r3, pc}
+ 1099              	.L144:
+ 592:../src/cc3000_spi.c **** 		}
+ 593:../src/cc3000_spi.c **** 		else if (sSpiInformation.ulSpiState == eSPI_STATE_IDLE)
+ 1100              		.loc 1 593 0
+ 1101 0018 9968     		ldr	r1, [r3, #8]
+ 1102 001a 0229     		cmp	r1, #2
+ 1103 001c 0AD1     		bne	.L145
+ 594:../src/cc3000_spi.c **** 		{
+ 595:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_READ_IRQ;
+ 1104              		.loc 1 595 0
+ 1105 001e 0622     		movs	r2, #6
+ 596:../src/cc3000_spi.c **** 
+ 597:../src/cc3000_spi.c **** 			/* IRQ line goes down - we are starting reception */
+ 598:../src/cc3000_spi.c **** 
+ 599:../src/cc3000_spi.c **** 			ASSERT_CS();
+ 1106              		.loc 1 599 0
+ 1107 0020 1248     		ldr	r0, .L147+8
+ 1108 0022 4FF48051 		mov	r1, #4096
+ 595:../src/cc3000_spi.c **** 			sSpiInformation.ulSpiState = eSPI_STATE_READ_IRQ;
+ 1109              		.loc 1 595 0
+ 1110 0026 9A60     		str	r2, [r3, #8]
+ 1111              		.loc 1 599 0
+ 1112 0028 FFF7FEFF 		bl	GPIO_ResetBits
+ 1113              	.LVL101:
+ 600:../src/cc3000_spi.c **** 
+ 601:../src/cc3000_spi.c **** 			//
+ 602:../src/cc3000_spi.c **** 			// Wait for TX/RX Complete which will come as DMA interrupt
+ 603:../src/cc3000_spi.c **** 			//
+ 604:../src/cc3000_spi.c **** 			SpiReadHeader();
+ 605:../src/cc3000_spi.c **** 		}
+ 606:../src/cc3000_spi.c **** 		else if (sSpiInformation.ulSpiState == eSPI_STATE_WRITE_IRQ)
+ 607:../src/cc3000_spi.c **** 		{
+ 608:../src/cc3000_spi.c **** 			if (sSpiInformation.usTxPacketLength <= SPI_WINDOW_SIZE)
+ 609:../src/cc3000_spi.c **** 			{
+ 610:../src/cc3000_spi.c **** 				//
+ 611:../src/cc3000_spi.c **** 				// Send the data over SPI and wait for complete interrupt
+ 612:../src/cc3000_spi.c **** 				//
+ 613:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_WRITE_EOT;
+ 614:../src/cc3000_spi.c **** 
+ 615:../src/cc3000_spi.c **** 				SpiReadWriteStringInt(FALSE, sSpiInformation.pTxPacket, sSpiInformation.usTxPacketLength);
+ 616:../src/cc3000_spi.c **** 
+ 617:../src/cc3000_spi.c **** 			}
+ 618:../src/cc3000_spi.c **** 			else
+ 619:../src/cc3000_spi.c **** 			{
+ 620:../src/cc3000_spi.c **** 				//
+ 621:../src/cc3000_spi.c **** 				// Send the data over SPI and wait for complete interrupt to transfer the rest
+ 622:../src/cc3000_spi.c **** 				//
+ 623:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_WRITE_FIRST_PORTION;
+ 624:../src/cc3000_spi.c **** 
+ 625:../src/cc3000_spi.c **** 				//
+ 626:../src/cc3000_spi.c **** 				// Start the DMA and change state
+ 627:../src/cc3000_spi.c **** 				//
+ 628:../src/cc3000_spi.c **** 				SpiWriteAsync(sSpiInformation.pTxPacket, SPI_WINDOW_SIZE);
+ 629:../src/cc3000_spi.c **** 			}
+ 630:../src/cc3000_spi.c **** 		}
+ 631:../src/cc3000_spi.c **** 	}
+ 632:../src/cc3000_spi.c **** }
+ 1114              		.loc 1 632 0
+ 1115 002c BDE80840 		pop	{r3, lr}
+ 604:../src/cc3000_spi.c **** 			SpiReadHeader();
+ 1116              		.loc 1 604 0
+ 1117 0030 FFF7FEBF 		b	SpiReadHeader
+ 1118              	.LVL102:
+ 1119              	.L145:
+ 606:../src/cc3000_spi.c **** 		else if (sSpiInformation.ulSpiState == eSPI_STATE_WRITE_IRQ)
+ 1120              		.loc 1 606 0
+ 1121 0034 9A68     		ldr	r2, [r3, #8]
+ 1122 0036 032A     		cmp	r2, #3
+ 1123 0038 13D1     		bne	.L142
+ 608:../src/cc3000_spi.c **** 			if (sSpiInformation.usTxPacketLength <= SPI_WINDOW_SIZE)
+ 1124              		.loc 1 608 0
+ 1125 003a 9A88     		ldrh	r2, [r3, #4]
+ 1126 003c B2F5806F 		cmp	r2, #1024
+ 1127 0040 06D8     		bhi	.L146
+ 613:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_WRITE_EOT;
+ 1128              		.loc 1 613 0
+ 1129 0042 0521     		movs	r1, #5
+ 1130 0044 9960     		str	r1, [r3, #8]
+ 615:../src/cc3000_spi.c **** 				SpiReadWriteStringInt(FALSE, sSpiInformation.pTxPacket, sSpiInformation.usTxPacketLength);
+ 1131              		.loc 1 615 0
+ 1132 0046 D968     		ldr	r1, [r3, #12]
+ 1133              		.loc 1 632 0
+ 1134 0048 BDE80840 		pop	{r3, lr}
+ 615:../src/cc3000_spi.c **** 				SpiReadWriteStringInt(FALSE, sSpiInformation.pTxPacket, sSpiInformation.usTxPacketLength);
+ 1135              		.loc 1 615 0
+ 1136 004c FFF7FEBF 		b	SpiReadWriteStringInt
+ 1137              	.LVL103:
+ 1138              	.L146:
+ 623:../src/cc3000_spi.c **** 				sSpiInformation.ulSpiState = eSPI_STATE_WRITE_FIRST_PORTION;
+ 1139              		.loc 1 623 0
+ 1140 0050 0420     		movs	r0, #4
+ 1141 0052 9860     		str	r0, [r3, #8]
+ 628:../src/cc3000_spi.c **** 				SpiWriteAsync(sSpiInformation.pTxPacket, SPI_WINDOW_SIZE);
+ 1142              		.loc 1 628 0
+ 1143 0054 D868     		ldr	r0, [r3, #12]
+ 1144 0056 4FF48061 		mov	r1, #1024
+ 1145              		.loc 1 632 0
+ 1146 005a BDE80840 		pop	{r3, lr}
+ 628:../src/cc3000_spi.c **** 				SpiWriteAsync(sSpiInformation.pTxPacket, SPI_WINDOW_SIZE);
+ 1147              		.loc 1 628 0
+ 1148 005e FFF7FEBF 		b	SpiWriteAsync
+ 1149              	.LVL104:
+ 1150              	.L142:
+ 1151 0062 08BD     		pop	{r3, pc}
+ 1152              	.L148:
+ 1153              		.align	2
+ 1154              	.L147:
+ 1155 0064 00000000 		.word	tSLInformation
+ 1156 0068 00000000 		.word	sSpiInformation
+ 1157 006c 000C0140 		.word	1073810432
+ 1158              		.cfi_endproc
+ 1159              	.LFE72:
+ 1161              		.global	tSpiReadHeader
+ 1162              		.comm	sSpiInformation,20,4
+ 1163              		.comm	wlan_tx_buffer,1024,1
+ 1164              		.comm	wlan_rx_buffer,1024,1
+ 1165              		.data
+ 1166              		.set	.LANCHOR0,. + 0
+ 1169              	tSpiReadHeader:
+ 1170 0000 03       		.byte	3
+ 1171 0001 00       		.byte	0
+ 1172 0002 00       		.byte	0
+ 1173 0003 00       		.byte	0
+ 1174 0004 00       		.byte	0
+ 1175              		.text
+ 1176              	.Letext0:
+ 1177              		.file 3 "/usr/local/gcc-arm-none-eabi-4_7-2013q1/bin/../lib/gcc/arm-none-eabi/4.7.3/../../../../ar
+ 1178              		.file 4 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Device/ST/STM32F10x/Include
+ 1179              		.file 5 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CC3000_Host_Driver/cc3000_common.
+ 1180              		.file 6 "/Users/zac/code/spark/cc3000-patch-programmer/inc/hw_config.h"
+ 1181              		.file 7 "/Users/zac/code/spark/cc3000-patch-programmer/inc/cc3000_spi.h"
+ 1182              		.file 8 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Include/core_cm3.h"
+ 1183              		.file 9 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/CMSIS/Device/ST/STM32F10x/Include
+ 1184              		.file 10 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/STM32F10x_StdPeriph_Driver/inc/s
+ 1185              		.file 11 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/STM32F10x_StdPeriph_Driver/inc/s
+ 1186              		.file 12 "/Users/zac/code/spark/cc3000-patch-programmer/libraries/STM32F10x_StdPeriph_Driver/inc/s
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 cc3000_spi.c
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:19     .text.SysCtlDelay:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:24     .text.SysCtlDelay:0000000000000000 SysCtlDelay
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:38     .text.SpiOpen:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:43     .text.SpiOpen:0000000000000000 SpiOpen
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:84     .text.SpiOpen:000000000000001c $d
+                            *COM*:0000000000000014 sSpiInformation
+                            *COM*:0000000000000400 wlan_rx_buffer
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:91     .text.SpiClose:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:96     .text.SpiClose:0000000000000000 SpiClose
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:124    .text.SpiClose:0000000000000014 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:130    .text.SpiResumeSpi:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:135    .text.SpiResumeSpi:0000000000000000 SpiResumeSpi
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:157    .text.SpiPauseSpi:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:162    .text.SpiPauseSpi:0000000000000000 SpiPauseSpi
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:183    .text.SpiTriggerRxProcessing:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:188    .text.SpiTriggerRxProcessing:0000000000000000 SpiTriggerRxProcessing
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:231    .text.SpiTriggerRxProcessing:0000000000000020 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:237    .text.SpiReadWriteStringInt:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:242    .text.SpiReadWriteStringInt:0000000000000000 SpiReadWriteStringInt
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:334    .text.SpiReadWriteStringInt:000000000000006c $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:343    .text.SpiReadData:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:348    .text.SpiReadData:0000000000000000 SpiReadData
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:372    .text.SpiReadWriteString:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:377    .text.SpiReadWriteString:0000000000000000 SpiReadWriteString
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:463    .text.SpiReadWriteString:0000000000000064 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:472    .text.SpiWriteAsync:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:477    .text.SpiWriteAsync:0000000000000000 SpiWriteAsync
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:501    .text.SpiFirstWrite:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:506    .text.SpiFirstWrite:0000000000000000 SpiFirstWrite
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:561    .text.SpiFirstWrite:000000000000003c $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:567    .text.SpiWrite:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:572    .text.SpiWrite:0000000000000000 SpiWrite
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:705    .text.SpiWrite:0000000000000090 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:713    .text.SpiReadDataCont:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:718    .text.SpiReadDataCont:0000000000000000 SpiReadDataCont
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:816    .text.SpiReadDataCont:0000000000000064 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:821    .text.SpiReadHeader:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:826    .text.SpiReadHeader:0000000000000000 SpiReadHeader
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:845    .text.SpiReadHeader:000000000000000c $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:850    .text.SpiContReadOperation:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:855    .text.SpiContReadOperation:0000000000000000 SpiContReadOperation
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:881    .text.SPI_DMA_IntHandler:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:886    .text.SPI_DMA_IntHandler:0000000000000000 SPI_DMA_IntHandler
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:1061   .text.SPI_DMA_IntHandler:00000000000000e4 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:1068   .text.SPI_EXTI_IntHandler:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:1073   .text.SPI_EXTI_IntHandler:0000000000000000 SPI_EXTI_IntHandler
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:1155   .text.SPI_EXTI_IntHandler:0000000000000064 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//cc0xYZiS.s:1169   .data:0000000000000000 tSpiReadHeader
+                            *COM*:0000000000000400 wlan_tx_buffer
+                     .debug_frame:0000000000000010 $d
+                           .group:0000000000000000 wm4.1.94ea818a60f77b04fe5add16507b1dca
+                           .group:0000000000000000 wm4.newlib.h.8.a9901dc52d1357e3e94003403d43f8b5
+                           .group:0000000000000000 wm4.features.h.22.b72b3baab2bb2eab3661375590100b6b
+                           .group:0000000000000000 wm4.config.h.193.5fb8ef056cdff92dec3dee9552839d8c
+                           .group:0000000000000000 wm4._ansi.h.23.b5bb84d7ba97d82b5b1dc1826a7ae811
+                           .group:0000000000000000 wm4._default_types.h.6.5e12cd604db8ce00b62bb2f02708eaf3
+                           .group:0000000000000000 wm4.lock.h.2.9bc98482741e5e2a9450b12934a684ea
+                           .group:0000000000000000 wm4.stddef.h.349.31f4c5baff3fa2689010b32028da9c47
+                           .group:0000000000000000 wm4.reent.h.16.9e42f0e588b85e70b2bf6572af57ce64
+                           .group:0000000000000000 wm4.stddef.h.187.9e651b6b8b16e149c1353259404973ea
+                           .group:0000000000000000 wm4.string.h.17.f8d12df81104836a3f2a5d589ae830d8
+                           .group:0000000000000000 wm4.platform_config.h.13.537ea5f27be1e1b5a05f1a7b76278f84
+                           .group:0000000000000000 wm4.stm32f10x.h.57.69ab29c83f735418a543aa508b559235
+                           .group:0000000000000000 wm4.core_cm3.h.32.8e21fbd14bb96c2b40e026c4d2c8fe1f
+                           .group:0000000000000000 wm4.stdint.h.10.90b695f550ca6cc3fb08fa83baf01e05
+                           .group:0000000000000000 wm4.core_cmInstr.h.25.d8165482ef3061013a2fc83e2d85f3d9
+                           .group:0000000000000000 wm4.core_cm3.h.129.e08b7204181ea22e6a9fa84cb9ad0924
+                           .group:0000000000000000 wm4.stm32f10x.h.532.91bd57525f6c583f00129a351847d405
+                           .group:0000000000000000 wm4.stm32f10x_bkp.h.64.07c104f22a887098a9ccb01471e84bcc
+                           .group:0000000000000000 wm4.stm32f10x_dma.h.31.ef16218235edc52b414c0353f44b4bf0
+                           .group:0000000000000000 wm4.stm32f10x_exti.h.31.b25bcb4f1a2daad39d2d7dfa4e901646
+                           .group:0000000000000000 wm4.stm32f10x_flash.h.31.0203bc95b65c5396b67991e07a675efb
+                           .group:0000000000000000 wm4.stm32f10x_gpio.h.31.0a32659dbac1fc1055c7cbdc248963be
+                           .group:0000000000000000 wm4.stm32f10x_pwr.h.31.9168b6921e0cf03b467c7ed90861c701
+                           .group:0000000000000000 wm4.stm32f10x_rcc.h.31.2ee3219a25ef4ced658f2fe9d8cd94aa
+                           .group:0000000000000000 wm4.stm32f10x_spi.h.31.d2f6e4626887cabe8c98f3a185590a36
+                           .group:0000000000000000 wm4.stm32f10x_tim.h.31.6c06f7f26e0864f9cd59597f46ca2c7c
+                           .group:0000000000000000 wm4.misc.h.31.a89fba2040036f6f8c835a78a213e0cd
+                           .group:0000000000000000 wm4.stm32f10x.h.8356.9fd2fa84655112ac7dfc5c88beeb383d
+                           .group:0000000000000000 wm4.platform_config.h.40.7acc7b4edf71863be31619c6a2d65803
+                           .group:0000000000000000 wm4.stdlib.h.13.603ed7eb09a1561ab06840b7c0fcff58
+                           .group:0000000000000000 wm4.stddef.h.235.fb53403984550eba259277227435d55a
+                           .group:0000000000000000 wm4.alloca.h.8.dfc0c703c47ec3e69746825b17d9e66d
+                           .group:0000000000000000 wm4.stdlib.h.53.c69c7609933ff56d59c757cec2d13230
+                           .group:0000000000000000 wm4.errno.h.2.ba016d646105af6cad23be83630b6a3f
+                           .group:0000000000000000 wm4.errno.h.9.65044c2b5d8494e43f5986ab0a1d770f
+                           .group:0000000000000000 wm4.cc3000_common.h.58.c968e6f087d13da99b8c4c23daaad62a
+                           .group:0000000000000000 wm4.hw_config.h.45.70fd431154434a3dd8dba02a13e78227
+                           .group:0000000000000000 wm4.hci.h.51.9deb4690145bc08404ecd70e8dadf8e4
+                           .group:0000000000000000 wm4.wlan.h.36.4c6fda3ef88238c289a06e4d08269130
+                           .group:0000000000000000 wm4.cc3000_spi.h.23.1c29ffde27bc0db6b69332f529b4950f
+
+UNDEFINED SYMBOLS
+tSLInformation
+GPIO_SetBits
+CC3000_SPI_DMA_Channels
+CC3000_DMA_Config
+DMA_ITConfig
+DMA_GetCurrDataCounter
+SPI_I2S_GetFlagStatus
+GPIO_ResetBits
+STREAM_TO_UINT16_f
+DMA_GetFlagStatus
+DMA_ClearFlag

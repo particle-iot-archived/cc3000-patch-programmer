@@ -1,0 +1,878 @@
+   1              		.syntax unified
+   2              		.cpu cortex-m3
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 4
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.thumb
+  14              		.file	"nvmem.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.section	.text.nvmem_read,"ax",%progbits
+  19              		.align	1
+  20              		.global	nvmem_read
+  21              		.thumb
+  22              		.thumb_func
+  24              	nvmem_read:
+  25              	.LFB0:
+  26              		.file 1 "../libraries/CC3000_Host_Driver/nvmem.c"
+   1:../libraries/CC3000_Host_Driver/nvmem.c **** /*****************************************************************************
+   2:../libraries/CC3000_Host_Driver/nvmem.c **** *
+   3:../libraries/CC3000_Host_Driver/nvmem.c **** *  nvmem.c  - CC3000 Host Driver Implementation.
+   4:../libraries/CC3000_Host_Driver/nvmem.c **** *  Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+   5:../libraries/CC3000_Host_Driver/nvmem.c **** *
+   6:../libraries/CC3000_Host_Driver/nvmem.c **** *  Redistribution and use in source and binary forms, with or without
+   7:../libraries/CC3000_Host_Driver/nvmem.c **** *  modification, are permitted provided that the following conditions
+   8:../libraries/CC3000_Host_Driver/nvmem.c **** *  are met:
+   9:../libraries/CC3000_Host_Driver/nvmem.c **** *
+  10:../libraries/CC3000_Host_Driver/nvmem.c **** *    Redistributions of source code must retain the above copyright
+  11:../libraries/CC3000_Host_Driver/nvmem.c **** *    notice, this list of conditions and the following disclaimer.
+  12:../libraries/CC3000_Host_Driver/nvmem.c **** *
+  13:../libraries/CC3000_Host_Driver/nvmem.c **** *    Redistributions in binary form must reproduce the above copyright
+  14:../libraries/CC3000_Host_Driver/nvmem.c **** *    notice, this list of conditions and the following disclaimer in the
+  15:../libraries/CC3000_Host_Driver/nvmem.c **** *    documentation and/or other materials provided with the   
+  16:../libraries/CC3000_Host_Driver/nvmem.c **** *    distribution.
+  17:../libraries/CC3000_Host_Driver/nvmem.c **** *
+  18:../libraries/CC3000_Host_Driver/nvmem.c **** *    Neither the name of Texas Instruments Incorporated nor the names of
+  19:../libraries/CC3000_Host_Driver/nvmem.c **** *    its contributors may be used to endorse or promote products derived
+  20:../libraries/CC3000_Host_Driver/nvmem.c **** *    from this software without specific prior written permission.
+  21:../libraries/CC3000_Host_Driver/nvmem.c **** *
+  22:../libraries/CC3000_Host_Driver/nvmem.c **** *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+  23:../libraries/CC3000_Host_Driver/nvmem.c **** *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+  24:../libraries/CC3000_Host_Driver/nvmem.c **** *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  25:../libraries/CC3000_Host_Driver/nvmem.c **** *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
+  26:../libraries/CC3000_Host_Driver/nvmem.c **** *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+  27:../libraries/CC3000_Host_Driver/nvmem.c **** *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+  28:../libraries/CC3000_Host_Driver/nvmem.c **** *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  29:../libraries/CC3000_Host_Driver/nvmem.c **** *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  30:../libraries/CC3000_Host_Driver/nvmem.c **** *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+  31:../libraries/CC3000_Host_Driver/nvmem.c **** *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+  32:../libraries/CC3000_Host_Driver/nvmem.c **** *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  33:../libraries/CC3000_Host_Driver/nvmem.c **** *
+  34:../libraries/CC3000_Host_Driver/nvmem.c **** *****************************************************************************/
+  35:../libraries/CC3000_Host_Driver/nvmem.c **** 
+  36:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+  37:../libraries/CC3000_Host_Driver/nvmem.c **** //
+  38:../libraries/CC3000_Host_Driver/nvmem.c **** //! \addtogroup nvmem_api
+  39:../libraries/CC3000_Host_Driver/nvmem.c **** //! @{
+  40:../libraries/CC3000_Host_Driver/nvmem.c **** //
+  41:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+  42:../libraries/CC3000_Host_Driver/nvmem.c **** 
+  43:../libraries/CC3000_Host_Driver/nvmem.c **** #include <stdio.h>
+  44:../libraries/CC3000_Host_Driver/nvmem.c **** #include <string.h>
+  45:../libraries/CC3000_Host_Driver/nvmem.c **** #include "nvmem.h"
+  46:../libraries/CC3000_Host_Driver/nvmem.c **** #include "hci.h"
+  47:../libraries/CC3000_Host_Driver/nvmem.c **** #include "socket.h"
+  48:../libraries/CC3000_Host_Driver/nvmem.c **** #include "evnt_handler.h"
+  49:../libraries/CC3000_Host_Driver/nvmem.c **** 
+  50:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+  51:../libraries/CC3000_Host_Driver/nvmem.c **** //
+  52:../libraries/CC3000_Host_Driver/nvmem.c **** // Prototypes for the structures for APIs.
+  53:../libraries/CC3000_Host_Driver/nvmem.c **** //
+  54:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+  55:../libraries/CC3000_Host_Driver/nvmem.c **** 
+  56:../libraries/CC3000_Host_Driver/nvmem.c **** #define NVMEM_READ_PARAMS_LEN 	(12)
+  57:../libraries/CC3000_Host_Driver/nvmem.c **** #define NVMEM_CREATE_PARAMS_LEN 	(8)
+  58:../libraries/CC3000_Host_Driver/nvmem.c **** #define NVMEM_WRITE_PARAMS_LEN  (16)
+  59:../libraries/CC3000_Host_Driver/nvmem.c **** 
+  60:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+  61:../libraries/CC3000_Host_Driver/nvmem.c **** //
+  62:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_read
+  63:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+  64:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulFileId   nvmem file id:\n
+  65:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_NVS_FILEID, NVMEM_NVS_SHADOW_FILEID,
+  66:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_WLAN_CONFIG_FILEID, NVMEM_WLAN_CONFIG_SHADOW_FILEID,
+  67:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_WLAN_DRIVER_SP_FILEID, NVMEM_WLAN_FW_SP_FILEID,
+  68:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_MAC_FILEID, NVMEM_FRONTEND_VARS_FILEID,
+  69:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_IP_CONFIG_FILEID, NVMEM_IP_CONFIG_SHADOW_FILEID,
+  70:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_BOOTLOADER_SP_FILEID, NVMEM_RM_FILEID,
+  71:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     and user files 12-15.
+  72:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulLength    number of bytes to read 
+  73:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulOffset    ulOffset in file from where to read  
+  74:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  buff        output buffer pointer
+  75:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+  76:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       number of bytes read, otherwise error.
+  77:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+  78:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief       Reads data from the file referred by the ulFileId parameter. 
+  79:../libraries/CC3000_Host_Driver/nvmem.c **** //!               Reads data from file ulOffset till length. Err if the file can't
+  80:../libraries/CC3000_Host_Driver/nvmem.c **** //!               be used, is invalid, or if the read is out of bounds. 
+  81:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+  82:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+  83:../libraries/CC3000_Host_Driver/nvmem.c **** 
+  84:../libraries/CC3000_Host_Driver/nvmem.c **** signed long 
+  85:../libraries/CC3000_Host_Driver/nvmem.c **** nvmem_read(unsigned long ulFileId, unsigned long ulLength, unsigned long ulOffset, unsigned char *b
+  86:../libraries/CC3000_Host_Driver/nvmem.c **** {
+  27              		.loc 1 86 0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 8
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              	.LVL0:
+  32 0000 2DE9F341 		push	{r0, r1, r4, r5, r6, r7, r8, lr}
+  33              	.LCFI0:
+  34              		.cfi_def_cfa_offset 32
+  35              		.cfi_offset 0, -32
+  36              		.cfi_offset 1, -28
+  37              		.cfi_offset 4, -24
+  38              		.cfi_offset 5, -20
+  39              		.cfi_offset 6, -16
+  40              		.cfi_offset 7, -12
+  41              		.cfi_offset 8, -8
+  42              		.cfi_offset 14, -4
+  43              		.loc 1 86 0
+  44 0004 8646     		mov	lr, r0
+  87:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char ucStatus = 0xFF;
+  88:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *ptr;
+  89:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *args;
+  90:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+  91:../libraries/CC3000_Host_Driver/nvmem.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+  45              		.loc 1 91 0
+  46 0006 1448     		ldr	r0, .L2
+  47              	.LVL1:
+  86:../libraries/CC3000_Host_Driver/nvmem.c **** {
+  48              		.loc 1 86 0
+  49 0008 0D46     		mov	r5, r1
+  50              		.loc 1 91 0
+  51 000a 8668     		ldr	r6, [r0, #8]
+  52              	.LVL2:
+  92:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = (ptr + HEADERS_SIZE_CMD);
+  93:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+  94:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Fill in HCI packet structure
+  95:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulFileId);
+  53              		.loc 1 95 0
+  54 000c 7146     		mov	r1, lr
+  55              	.LVL3:
+  86:../libraries/CC3000_Host_Driver/nvmem.c **** {
+  56              		.loc 1 86 0
+  57 000e 1F46     		mov	r7, r3
+  87:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char ucStatus = 0xFF;
+  58              		.loc 1 87 0
+  59 0010 02AC     		add	r4, sp, #8
+  60 0012 FF23     		movs	r3, #255
+  61              	.LVL4:
+  62              		.loc 1 95 0
+  63 0014 06F10900 		add	r0, r6, #9
+  64              	.LVL5:
+  87:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char ucStatus = 0xFF;
+  65              		.loc 1 87 0
+  66 0018 04F8013D 		strb	r3, [r4, #-1]!
+  67              	.LVL6:
+  86:../libraries/CC3000_Host_Driver/nvmem.c **** {
+  68              		.loc 1 86 0
+  69 001c 9046     		mov	r8, r2
+  70              		.loc 1 95 0
+  71 001e FFF7FEFF 		bl	UINT32_TO_STREAM_f
+  72              	.LVL7:
+  96:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulLength);
+  73              		.loc 1 96 0
+  74 0022 2946     		mov	r1, r5
+  75 0024 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+  76              	.LVL8:
+  97:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulOffset);
+  98:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+  99:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Initiate a HCI command
+ 100:../libraries/CC3000_Host_Driver/nvmem.c **** 	hci_command_send(HCI_CMND_NVMEM_READ, ptr, NVMEM_READ_PARAMS_LEN);
+  77              		.loc 1 100 0
+  78 0028 40F20125 		movw	r5, #513
+  79              	.LVL9:
+  97:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulOffset);
+  80              		.loc 1 97 0
+  81 002c 4146     		mov	r1, r8
+  82 002e FFF7FEFF 		bl	UINT32_TO_STREAM_f
+  83              	.LVL10:
+  84              		.loc 1 100 0
+  85 0032 0C22     		movs	r2, #12
+  86 0034 3146     		mov	r1, r6
+  87 0036 2846     		mov	r0, r5
+  88 0038 FFF7FEFF 		bl	hci_command_send
+  89              	.LVL11:
+ 101:../libraries/CC3000_Host_Driver/nvmem.c **** 	SimpleLinkWaitEvent(HCI_CMND_NVMEM_READ, &ucStatus);
+  90              		.loc 1 101 0
+  91 003c 2846     		mov	r0, r5
+  92 003e 2146     		mov	r1, r4
+  93 0040 FFF7FEFF 		bl	SimpleLinkWaitEvent
+  94              	.LVL12:
+ 102:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 103:../libraries/CC3000_Host_Driver/nvmem.c **** 	// In case there is data - read it - even if an error code is returned
+ 104:../libraries/CC3000_Host_Driver/nvmem.c ****    // Note: It is the user responsibility to ignore the data in case of an error code
+ 105:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 106:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Wait for the data in a synchronous way. Here we assume that the buffer is 
+ 107:../libraries/CC3000_Host_Driver/nvmem.c **** 	// big enough to store also parameters of nvmem
+ 108:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 109:../libraries/CC3000_Host_Driver/nvmem.c **** 	SimpleLinkWaitData(buff, 0, 0);
+  95              		.loc 1 109 0
+  96 0044 0021     		movs	r1, #0
+  97 0046 3846     		mov	r0, r7
+  98 0048 0A46     		mov	r2, r1
+  99 004a FFF7FEFF 		bl	SimpleLinkWaitData
+ 100              	.LVL13:
+ 110:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 111:../libraries/CC3000_Host_Driver/nvmem.c **** 	return(ucStatus);
+ 112:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 101              		.loc 1 112 0
+ 102 004e 9DF80700 		ldrb	r0, [sp, #7]	@ zero_extendqisi2
+ 103 0052 BDE8FC81 		pop	{r2, r3, r4, r5, r6, r7, r8, pc}
+ 104              	.L3:
+ 105 0056 00BF     		.align	2
+ 106              	.L2:
+ 107 0058 00000000 		.word	tSLInformation
+ 108              		.cfi_endproc
+ 109              	.LFE0:
+ 111              		.section	.text.nvmem_write,"ax",%progbits
+ 112              		.align	1
+ 113              		.global	nvmem_write
+ 114              		.thumb
+ 115              		.thumb_func
+ 117              	nvmem_write:
+ 118              	.LFB1:
+ 113:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 114:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 115:../libraries/CC3000_Host_Driver/nvmem.c **** //
+ 116:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_write
+ 117:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 118:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulFileId nvmem file id:\n
+ 119:../libraries/CC3000_Host_Driver/nvmem.c **** //!                   NVMEM_WLAN_DRIVER_SP_FILEID, NVMEM_WLAN_FW_SP_FILEID,
+ 120:../libraries/CC3000_Host_Driver/nvmem.c **** //!                   NVMEM_MAC_FILEID, NVMEM_BOOTLOADER_SP_FILEID,
+ 121:../libraries/CC3000_Host_Driver/nvmem.c **** //!                   and user files 12-15.
+ 122:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulLength       number of bytes to write  
+ 123:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulEntryOffset  offset in file to start write operation from 
+ 124:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  buff           data to write
+ 125:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 126:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       on success 0, error otherwise.
+ 127:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 128:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief       Write data to nvmem.
+ 129:../libraries/CC3000_Host_Driver/nvmem.c **** //!               writes data to file referred by the ulFileId parameter. 
+ 130:../libraries/CC3000_Host_Driver/nvmem.c **** //!               Writes data to file ulOffset till ulLength.The file id will be 
+ 131:../libraries/CC3000_Host_Driver/nvmem.c **** //!               marked invalid till the write is done. The file entry doesn't
+ 132:../libraries/CC3000_Host_Driver/nvmem.c **** //!               need to be valid - only allocated.
+ 133:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+ 134:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 135:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 136:../libraries/CC3000_Host_Driver/nvmem.c **** signed long 
+ 137:../libraries/CC3000_Host_Driver/nvmem.c **** nvmem_write(unsigned long ulFileId, unsigned long ulLength, unsigned long 
+ 138:../libraries/CC3000_Host_Driver/nvmem.c **** 						ulEntryOffset, unsigned char *buff)
+ 139:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 119              		.loc 1 139 0
+ 120              		.cfi_startproc
+ 121              		@ args = 0, pretend = 0, frame = 8
+ 122              		@ frame_needed = 0, uses_anonymous_args = 0
+ 123              	.LVL14:
+ 124 0000 2DE9F341 		push	{r0, r1, r4, r5, r6, r7, r8, lr}
+ 125              	.LCFI1:
+ 126              		.cfi_def_cfa_offset 32
+ 127              		.cfi_offset 0, -32
+ 128              		.cfi_offset 1, -28
+ 129              		.cfi_offset 4, -24
+ 130              		.cfi_offset 5, -20
+ 131              		.cfi_offset 6, -16
+ 132              		.cfi_offset 7, -12
+ 133              		.cfi_offset 8, -8
+ 134              		.cfi_offset 14, -4
+ 135              		.loc 1 139 0
+ 136 0004 8646     		mov	lr, r0
+ 140:../libraries/CC3000_Host_Driver/nvmem.c **** 	long iRes;
+ 141:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *ptr;
+ 142:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *args;
+ 143:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 144:../libraries/CC3000_Host_Driver/nvmem.c **** 	iRes = EFAIL;
+ 145:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 146:../libraries/CC3000_Host_Driver/nvmem.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 137              		.loc 1 146 0
+ 138 0006 1648     		ldr	r0, .L5
+ 139              	.LVL15:
+ 139:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 140              		.loc 1 139 0
+ 141 0008 0C46     		mov	r4, r1
+ 142              		.loc 1 146 0
+ 143 000a 8668     		ldr	r6, [r0, #8]
+ 144              	.LVL16:
+ 147:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = (ptr + SPI_HEADER_SIZE + HCI_DATA_CMD_HEADER_SIZE);
+ 148:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 149:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Fill in HCI packet structure
+ 150:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulFileId);
+ 145              		.loc 1 150 0
+ 146 000c 7146     		mov	r1, lr
+ 147              	.LVL17:
+ 139:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 148              		.loc 1 139 0
+ 149 000e 9846     		mov	r8, r3
+ 144:../libraries/CC3000_Host_Driver/nvmem.c **** 	iRes = EFAIL;
+ 150              		.loc 1 144 0
+ 151 0010 02AD     		add	r5, sp, #8
+ 152 0012 4FF0FF33 		mov	r3, #-1
+ 153              	.LVL18:
+ 154              		.loc 1 150 0
+ 155 0016 06F10A00 		add	r0, r6, #10
+ 156              	.LVL19:
+ 144:../libraries/CC3000_Host_Driver/nvmem.c **** 	iRes = EFAIL;
+ 157              		.loc 1 144 0
+ 158 001a 45F8043D 		str	r3, [r5, #-4]!
+ 159              	.LVL20:
+ 139:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 160              		.loc 1 139 0
+ 161 001e 1746     		mov	r7, r2
+ 162              		.loc 1 150 0
+ 163 0020 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 164              	.LVL21:
+ 151:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, 12);
+ 165              		.loc 1 151 0
+ 166 0024 0C21     		movs	r1, #12
+ 167 0026 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 168              	.LVL22:
+ 152:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulLength);
+ 169              		.loc 1 152 0
+ 170 002a 2146     		mov	r1, r4
+ 171 002c FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 172              	.LVL23:
+ 153:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulEntryOffset);
+ 173              		.loc 1 153 0
+ 174 0030 3946     		mov	r1, r7
+ 175 0032 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 176              	.LVL24:
+ 154:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 155:../libraries/CC3000_Host_Driver/nvmem.c **** 	memcpy((ptr + SPI_HEADER_SIZE + HCI_DATA_CMD_HEADER_SIZE + 
+ 177              		.loc 1 155 0
+ 178 0036 4146     		mov	r1, r8
+ 179 0038 2246     		mov	r2, r4
+ 180 003a 06F11A00 		add	r0, r6, #26
+ 181 003e FFF7FEFF 		bl	memcpy
+ 182              	.LVL25:
+ 156:../libraries/CC3000_Host_Driver/nvmem.c **** 					NVMEM_WRITE_PARAMS_LEN),buff,ulLength);
+ 157:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 158:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Initiate a HCI command but it will come on data channel
+ 159:../libraries/CC3000_Host_Driver/nvmem.c **** 	hci_data_command_send(HCI_CMND_NVMEM_WRITE, ptr, NVMEM_WRITE_PARAMS_LEN,
+ 183              		.loc 1 159 0
+ 184 0042 9020     		movs	r0, #144
+ 185 0044 3146     		mov	r1, r6
+ 186 0046 1022     		movs	r2, #16
+ 187 0048 A3B2     		uxth	r3, r4
+ 188 004a FFF7FEFF 		bl	hci_data_command_send
+ 189              	.LVL26:
+ 160:../libraries/CC3000_Host_Driver/nvmem.c **** 												ulLength);
+ 161:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 162:../libraries/CC3000_Host_Driver/nvmem.c **** 	SimpleLinkWaitEvent(HCI_EVNT_NVMEM_WRITE, &iRes);
+ 190              		.loc 1 162 0
+ 191 004e 40F20220 		movw	r0, #514
+ 192 0052 2946     		mov	r1, r5
+ 193 0054 FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 194              	.LVL27:
+ 163:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 164:../libraries/CC3000_Host_Driver/nvmem.c **** 	return(iRes);
+ 165:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 195              		.loc 1 165 0
+ 196 0058 0198     		ldr	r0, [sp, #4]
+ 197 005a BDE8FC81 		pop	{r2, r3, r4, r5, r6, r7, r8, pc}
+ 198              	.L6:
+ 199 005e 00BF     		.align	2
+ 200              	.L5:
+ 201 0060 00000000 		.word	tSLInformation
+ 202              		.cfi_endproc
+ 203              	.LFE1:
+ 205              		.section	.text.nvmem_set_mac_address,"ax",%progbits
+ 206              		.align	1
+ 207              		.global	nvmem_set_mac_address
+ 208              		.thumb
+ 209              		.thumb_func
+ 211              	nvmem_set_mac_address:
+ 212              	.LFB2:
+ 166:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 167:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 168:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 169:../libraries/CC3000_Host_Driver/nvmem.c **** //
+ 170:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_set_mac_address
+ 171:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 172:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  mac   mac address to be set
+ 173:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 174:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       on success 0, error otherwise.
+ 175:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 176:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief       Write MAC address to EEPROM. 
+ 177:../libraries/CC3000_Host_Driver/nvmem.c **** //!               mac address as appears over the air (OUI first)
+ 178:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+ 179:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 180:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 181:../libraries/CC3000_Host_Driver/nvmem.c **** unsigned char nvmem_set_mac_address(unsigned char *mac)
+ 182:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 213              		.loc 1 182 0
+ 214              		.cfi_startproc
+ 215              		@ args = 0, pretend = 0, frame = 0
+ 216              		@ frame_needed = 0, uses_anonymous_args = 0
+ 217              	.LVL28:
+ 218 0000 08B5     		push	{r3, lr}
+ 219              	.LCFI2:
+ 220              		.cfi_def_cfa_offset 8
+ 221              		.cfi_offset 3, -8
+ 222              		.cfi_offset 14, -4
+ 223              		.loc 1 182 0
+ 224 0002 0346     		mov	r3, r0
+ 183:../libraries/CC3000_Host_Driver/nvmem.c **** 	return  nvmem_write(NVMEM_MAC_FILEID, MAC_ADDR_LEN, 0, mac);
+ 225              		.loc 1 183 0
+ 226 0004 0620     		movs	r0, #6
+ 227              	.LVL29:
+ 228 0006 0146     		mov	r1, r0
+ 229 0008 0022     		movs	r2, #0
+ 230 000a FFF7FEFF 		bl	nvmem_write
+ 231              	.LVL30:
+ 184:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 232              		.loc 1 184 0
+ 233 000e C0B2     		uxtb	r0, r0
+ 234 0010 08BD     		pop	{r3, pc}
+ 235              		.cfi_endproc
+ 236              	.LFE2:
+ 238              		.section	.text.nvmem_get_mac_address,"ax",%progbits
+ 239              		.align	1
+ 240              		.global	nvmem_get_mac_address
+ 241              		.thumb
+ 242              		.thumb_func
+ 244              	nvmem_get_mac_address:
+ 245              	.LFB3:
+ 185:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 186:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 187:../libraries/CC3000_Host_Driver/nvmem.c **** //
+ 188:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_get_mac_address
+ 189:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 190:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param[out]  mac   mac address  
+ 191:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 192:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       on success 0, error otherwise.
+ 193:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 194:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief       Read MAC address from EEPROM. 
+ 195:../libraries/CC3000_Host_Driver/nvmem.c **** //!               mac address as appears over the air (OUI first)
+ 196:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+ 197:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 198:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 199:../libraries/CC3000_Host_Driver/nvmem.c **** unsigned char nvmem_get_mac_address(unsigned char *mac)
+ 200:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 246              		.loc 1 200 0
+ 247              		.cfi_startproc
+ 248              		@ args = 0, pretend = 0, frame = 0
+ 249              		@ frame_needed = 0, uses_anonymous_args = 0
+ 250              	.LVL31:
+ 251 0000 08B5     		push	{r3, lr}
+ 252              	.LCFI3:
+ 253              		.cfi_def_cfa_offset 8
+ 254              		.cfi_offset 3, -8
+ 255              		.cfi_offset 14, -4
+ 256              		.loc 1 200 0
+ 257 0002 0346     		mov	r3, r0
+ 201:../libraries/CC3000_Host_Driver/nvmem.c **** 	return  nvmem_read(NVMEM_MAC_FILEID, MAC_ADDR_LEN, 0, mac);
+ 258              		.loc 1 201 0
+ 259 0004 0620     		movs	r0, #6
+ 260              	.LVL32:
+ 261 0006 0146     		mov	r1, r0
+ 262 0008 0022     		movs	r2, #0
+ 263 000a FFF7FEFF 		bl	nvmem_read
+ 264              	.LVL33:
+ 202:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 265              		.loc 1 202 0
+ 266 000e C0B2     		uxtb	r0, r0
+ 267 0010 08BD     		pop	{r3, pc}
+ 268              		.cfi_endproc
+ 269              	.LFE3:
+ 271              		.section	.text.nvmem_write_patch,"ax",%progbits
+ 272              		.align	1
+ 273              		.global	nvmem_write_patch
+ 274              		.thumb
+ 275              		.thumb_func
+ 277              	nvmem_write_patch:
+ 278              	.LFB4:
+ 203:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 204:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 205:../libraries/CC3000_Host_Driver/nvmem.c **** //
+ 206:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_write_patch
+ 207:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 208:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  ulFileId   nvmem file id:\n
+ 209:../libraries/CC3000_Host_Driver/nvmem.c **** //!                     NVMEM_WLAN_DRIVER_SP_FILEID, NVMEM_WLAN_FW_SP_FILEID,
+ 210:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  spLength   number of bytes to write 
+ 211:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param  spData     SP data to write
+ 212:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 213:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       on success 0, error otherwise.
+ 214:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 215:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief      program a patch to a specific file ID. 
+ 216:../libraries/CC3000_Host_Driver/nvmem.c **** //!              The SP data is assumed to be organized in 2-dimensional.
+ 217:../libraries/CC3000_Host_Driver/nvmem.c **** //!              Each line is SP_PORTION_SIZE bytes long. Actual programming is 
+ 218:../libraries/CC3000_Host_Driver/nvmem.c **** //!              applied in SP_PORTION_SIZE bytes portions.
+ 219:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+ 220:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 221:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 222:../libraries/CC3000_Host_Driver/nvmem.c **** unsigned char nvmem_write_patch(unsigned long ulFileId, unsigned long spLength, const unsigned char
+ 223:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 279              		.loc 1 223 0
+ 280              		.cfi_startproc
+ 281              		@ args = 0, pretend = 0, frame = 0
+ 282              		@ frame_needed = 0, uses_anonymous_args = 0
+ 283              	.LVL34:
+ 284 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 285              	.LCFI4:
+ 286              		.cfi_def_cfa_offset 24
+ 287              		.cfi_offset 3, -24
+ 288              		.cfi_offset 4, -20
+ 289              		.cfi_offset 5, -16
+ 290              		.cfi_offset 6, -12
+ 291              		.cfi_offset 7, -8
+ 292              		.cfi_offset 14, -4
+ 293              		.loc 1 223 0
+ 294 0002 0646     		mov	r6, r0
+ 295 0004 0D46     		mov	r5, r1
+ 296 0006 1746     		mov	r7, r2
+ 297              	.LVL35:
+ 298 0008 0C46     		mov	r4, r1
+ 299              	.LVL36:
+ 300              	.L10:
+ 222:../libraries/CC3000_Host_Driver/nvmem.c **** unsigned char nvmem_write_patch(unsigned long ulFileId, unsigned long spLength, const unsigned char
+ 301              		.loc 1 222 0 discriminator 2
+ 302 000a 7B19     		adds	r3, r7, r5
+ 303 000c 2A1B     		subs	r2, r5, r4
+ 224:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char 	status = 0;
+ 225:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned short	offset = 0;
+ 226:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char*      spDataPtr = (unsigned char*)spData;
+ 227:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 228:../libraries/CC3000_Host_Driver/nvmem.c **** 	while ((status == 0) && (spLength >= SP_PORTION_SIZE))
+ 304              		.loc 1 228 0 discriminator 2
+ 305 000e B4F5007F 		cmp	r4, #512
+ 222:../libraries/CC3000_Host_Driver/nvmem.c **** unsigned char nvmem_write_patch(unsigned long ulFileId, unsigned long spLength, const unsigned char
+ 306              		.loc 1 222 0 discriminator 2
+ 307 0012 C4EB0303 		rsb	r3, r4, r3
+ 308 0016 92B2     		uxth	r2, r2
+ 309              		.loc 1 228 0 discriminator 2
+ 310 0018 0AD3     		bcc	.L18
+ 311              	.L12:
+ 229:../libraries/CC3000_Host_Driver/nvmem.c **** 	{
+ 230:../libraries/CC3000_Host_Driver/nvmem.c **** 		status = nvmem_write(ulFileId, SP_PORTION_SIZE, offset, spDataPtr);
+ 312              		.loc 1 230 0
+ 313 001a 3046     		mov	r0, r6
+ 314 001c 4FF40071 		mov	r1, #512
+ 315 0020 FFF7FEFF 		bl	nvmem_write
+ 316              	.LVL37:
+ 317 0024 C0B2     		uxtb	r0, r0
+ 318              	.LVL38:
+ 231:../libraries/CC3000_Host_Driver/nvmem.c **** 		offset += SP_PORTION_SIZE;
+ 232:../libraries/CC3000_Host_Driver/nvmem.c **** 		spLength -= SP_PORTION_SIZE;
+ 319              		.loc 1 232 0
+ 320 0026 A4F50074 		sub	r4, r4, #512
+ 321              	.LVL39:
+ 228:../libraries/CC3000_Host_Driver/nvmem.c **** 	while ((status == 0) && (spLength >= SP_PORTION_SIZE))
+ 322              		.loc 1 228 0
+ 323 002a 0028     		cmp	r0, #0
+ 324 002c EDD0     		beq	.L10
+ 325 002e 07E0     		b	.L15
+ 326              	.LVL40:
+ 327              	.L18:
+ 233:../libraries/CC3000_Host_Driver/nvmem.c **** 		spDataPtr += SP_PORTION_SIZE;
+ 234:../libraries/CC3000_Host_Driver/nvmem.c **** 	}
+ 235:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 236:../libraries/CC3000_Host_Driver/nvmem.c **** 	if (status !=0)
+ 237:../libraries/CC3000_Host_Driver/nvmem.c **** 	{
+ 238:../libraries/CC3000_Host_Driver/nvmem.c **** 		// NVMEM error occurred
+ 239:../libraries/CC3000_Host_Driver/nvmem.c **** 		return status;
+ 240:../libraries/CC3000_Host_Driver/nvmem.c **** 	}
+ 241:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 242:../libraries/CC3000_Host_Driver/nvmem.c **** 	if (spLength != 0)
+ 328              		.loc 1 242 0
+ 329 0030 2CB1     		cbz	r4, .L19
+ 330              	.L14:
+ 243:../libraries/CC3000_Host_Driver/nvmem.c **** 	{
+ 244:../libraries/CC3000_Host_Driver/nvmem.c **** 		// if reached here, a reminder is left
+ 245:../libraries/CC3000_Host_Driver/nvmem.c **** 		status = nvmem_write(ulFileId, spLength, offset, spDataPtr);
+ 331              		.loc 1 245 0
+ 332 0032 3046     		mov	r0, r6
+ 333 0034 2146     		mov	r1, r4
+ 334 0036 FFF7FEFF 		bl	nvmem_write
+ 335              	.LVL41:
+ 336 003a C0B2     		uxtb	r0, r0
+ 337              	.LVL42:
+ 338 003c F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 339              	.LVL43:
+ 340              	.L19:
+ 242:../libraries/CC3000_Host_Driver/nvmem.c **** 	if (spLength != 0)
+ 341              		.loc 1 242 0
+ 342 003e 2046     		mov	r0, r4
+ 343              	.L15:
+ 246:../libraries/CC3000_Host_Driver/nvmem.c **** 	}
+ 247:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 248:../libraries/CC3000_Host_Driver/nvmem.c **** 	return status;
+ 249:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 344              		.loc 1 249 0
+ 345 0040 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 346              		.cfi_endproc
+ 347              	.LFE4:
+ 349              		.section	.text.nvmem_read_sp_version,"ax",%progbits
+ 350              		.align	1
+ 351              		.global	nvmem_read_sp_version
+ 352              		.thumb
+ 353              		.thumb_func
+ 355              	nvmem_read_sp_version:
+ 356              	.LFB5:
+ 250:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 251:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 252:../libraries/CC3000_Host_Driver/nvmem.c **** //
+ 253:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_read_sp_version
+ 254:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 255:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param[out]  patchVer    first number indicates package ID and the second 
+ 256:../libraries/CC3000_Host_Driver/nvmem.c **** //!                           number indicates package build number   
+ 257:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 258:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       on success  0, error otherwise.
+ 259:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 260:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief      Read patch version. read package version (WiFi FW patch, 
+ 261:../libraries/CC3000_Host_Driver/nvmem.c **** //!              driver-supplicant-NS patch, bootloader patch)
+ 262:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+ 263:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 264:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 265:../libraries/CC3000_Host_Driver/nvmem.c **** #ifndef CC3000_TINY_DRIVER
+ 266:../libraries/CC3000_Host_Driver/nvmem.c **** unsigned char nvmem_read_sp_version(unsigned char* patchVer)
+ 267:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 357              		.loc 1 267 0
+ 358              		.cfi_startproc
+ 359              		@ args = 0, pretend = 0, frame = 8
+ 360              		@ frame_needed = 0, uses_anonymous_args = 0
+ 361              	.LVL44:
+ 362 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 363              	.LCFI5:
+ 364              		.cfi_def_cfa_offset 24
+ 365              		.cfi_offset 0, -24
+ 366              		.cfi_offset 1, -20
+ 367              		.cfi_offset 2, -16
+ 368              		.cfi_offset 4, -12
+ 369              		.cfi_offset 5, -8
+ 370              		.cfi_offset 14, -4
+ 268:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *ptr;
+ 269:../libraries/CC3000_Host_Driver/nvmem.c **** 	// 1st byte is the status and the rest is the SP version
+ 270:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char	retBuf[5];	
+ 271:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 272:../libraries/CC3000_Host_Driver/nvmem.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 371              		.loc 1 272 0
+ 372 0002 0B4B     		ldr	r3, .L21
+ 273:../libraries/CC3000_Host_Driver/nvmem.c ****   
+ 274:../libraries/CC3000_Host_Driver/nvmem.c ****    // Initiate a HCI command, no args are required
+ 275:../libraries/CC3000_Host_Driver/nvmem.c **** 	hci_command_send(HCI_CMND_READ_SP_VERSION, ptr, 0);	
+ 373              		.loc 1 275 0
+ 374 0004 40F20725 		movw	r5, #519
+ 267:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 375              		.loc 1 267 0
+ 376 0008 0446     		mov	r4, r0
+ 272:../libraries/CC3000_Host_Driver/nvmem.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 377              		.loc 1 272 0
+ 378 000a 9968     		ldr	r1, [r3, #8]
+ 379              	.LVL45:
+ 380              		.loc 1 275 0
+ 381 000c 0022     		movs	r2, #0
+ 382 000e 2846     		mov	r0, r5
+ 383              	.LVL46:
+ 384 0010 FFF7FEFF 		bl	hci_command_send
+ 385              	.LVL47:
+ 276:../libraries/CC3000_Host_Driver/nvmem.c **** 	SimpleLinkWaitEvent(HCI_CMND_READ_SP_VERSION, retBuf);
+ 386              		.loc 1 276 0
+ 387 0014 2846     		mov	r0, r5
+ 388 0016 6946     		mov	r1, sp
+ 389 0018 FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 390              	.LVL48:
+ 277:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 278:../libraries/CC3000_Host_Driver/nvmem.c **** 	// package ID
+ 279:../libraries/CC3000_Host_Driver/nvmem.c **** 	*patchVer = retBuf[3];			
+ 391              		.loc 1 279 0
+ 392 001c 9DF80300 		ldrb	r0, [sp, #3]	@ zero_extendqisi2
+ 280:../libraries/CC3000_Host_Driver/nvmem.c **** 	// package build number
+ 281:../libraries/CC3000_Host_Driver/nvmem.c **** 	*(patchVer+1) = retBuf[4];		
+ 393              		.loc 1 281 0
+ 394 0020 9DF80410 		ldrb	r1, [sp, #4]	@ zero_extendqisi2
+ 279:../libraries/CC3000_Host_Driver/nvmem.c **** 	*patchVer = retBuf[3];			
+ 395              		.loc 1 279 0
+ 396 0024 2070     		strb	r0, [r4, #0]
+ 397              		.loc 1 281 0
+ 398 0026 6170     		strb	r1, [r4, #1]
+ 282:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 283:../libraries/CC3000_Host_Driver/nvmem.c **** 	return(retBuf[0]);
+ 284:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 399              		.loc 1 284 0
+ 400 0028 9DF80000 		ldrb	r0, [sp, #0]	@ zero_extendqisi2
+ 401 002c 3EBD     		pop	{r1, r2, r3, r4, r5, pc}
+ 402              	.L22:
+ 403 002e 00BF     		.align	2
+ 404              	.L21:
+ 405 0030 00000000 		.word	tSLInformation
+ 406              		.cfi_endproc
+ 407              	.LFE5:
+ 409              		.section	.text.nvmem_create_entry,"ax",%progbits
+ 410              		.align	1
+ 411              		.global	nvmem_create_entry
+ 412              		.thumb
+ 413              		.thumb_func
+ 415              	nvmem_create_entry:
+ 416              	.LFB6:
+ 285:../libraries/CC3000_Host_Driver/nvmem.c **** #endif
+ 286:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 287:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 288:../libraries/CC3000_Host_Driver/nvmem.c **** //
+ 289:../libraries/CC3000_Host_Driver/nvmem.c **** //!  nvmem_create_entry
+ 290:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 291:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param       ulFileId    nvmem file Id:\n
+ 292:../libraries/CC3000_Host_Driver/nvmem.c **** //!                           * NVMEM_AES128_KEY_FILEID: 12
+ 293:../libraries/CC3000_Host_Driver/nvmem.c **** //!                           * NVMEM_SHARED_MEM_FILEID: 13
+ 294:../libraries/CC3000_Host_Driver/nvmem.c **** //!                           * and fileIDs 14 and 15
+ 295:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @param       ulNewLen    entry ulLength  
+ 296:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 297:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @return       on success 0, error otherwise.
+ 298:../libraries/CC3000_Host_Driver/nvmem.c **** //!
+ 299:../libraries/CC3000_Host_Driver/nvmem.c **** //!  @brief      Create new file entry and allocate space on the NVMEM. 
+ 300:../libraries/CC3000_Host_Driver/nvmem.c **** //!              Applies only to user files.
+ 301:../libraries/CC3000_Host_Driver/nvmem.c **** //!              Modify the size of file.
+ 302:../libraries/CC3000_Host_Driver/nvmem.c **** //!              If the entry is unallocated - allocate it to size 
+ 303:../libraries/CC3000_Host_Driver/nvmem.c **** //!              ulNewLen (marked invalid).
+ 304:../libraries/CC3000_Host_Driver/nvmem.c **** //!              If it is allocated then deallocate it first.
+ 305:../libraries/CC3000_Host_Driver/nvmem.c **** //!              To just mark the file as invalid without resizing - 
+ 306:../libraries/CC3000_Host_Driver/nvmem.c **** //!              set ulNewLen=0.
+ 307:../libraries/CC3000_Host_Driver/nvmem.c **** //!	 
+ 308:../libraries/CC3000_Host_Driver/nvmem.c **** //*****************************************************************************
+ 309:../libraries/CC3000_Host_Driver/nvmem.c **** 
+ 310:../libraries/CC3000_Host_Driver/nvmem.c **** signed long 
+ 311:../libraries/CC3000_Host_Driver/nvmem.c **** nvmem_create_entry(unsigned long ulFileId, unsigned long ulNewLen)
+ 312:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 417              		.loc 1 312 0
+ 418              		.cfi_startproc
+ 419              		@ args = 0, pretend = 0, frame = 8
+ 420              		@ frame_needed = 0, uses_anonymous_args = 0
+ 421              	.LVL49:
+ 422 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 423              	.LCFI6:
+ 424              		.cfi_def_cfa_offset 24
+ 425              		.cfi_offset 0, -24
+ 426              		.cfi_offset 1, -20
+ 427              		.cfi_offset 2, -16
+ 428              		.cfi_offset 4, -12
+ 429              		.cfi_offset 5, -8
+ 430              		.cfi_offset 14, -4
+ 313:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *ptr; 
+ 314:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned char *args;
+ 315:../libraries/CC3000_Host_Driver/nvmem.c **** 	unsigned short retval;
+ 316:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 317:../libraries/CC3000_Host_Driver/nvmem.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 431              		.loc 1 317 0
+ 432 0002 0D4A     		ldr	r2, .L24
+ 312:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 433              		.loc 1 312 0
+ 434 0004 0346     		mov	r3, r0
+ 435              		.loc 1 317 0
+ 436 0006 9568     		ldr	r5, [r2, #8]
+ 437              	.LVL50:
+ 312:../libraries/CC3000_Host_Driver/nvmem.c **** {
+ 438              		.loc 1 312 0
+ 439 0008 0C46     		mov	r4, r1
+ 318:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = (ptr + HEADERS_SIZE_CMD);
+ 319:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 320:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Fill in HCI packet structure
+ 321:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulFileId);
+ 440              		.loc 1 321 0
+ 441 000a 05F10900 		add	r0, r5, #9
+ 442              	.LVL51:
+ 443 000e 1946     		mov	r1, r3
+ 444              	.LVL52:
+ 445 0010 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 446              	.LVL53:
+ 322:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulNewLen);
+ 447              		.loc 1 322 0
+ 448 0014 2146     		mov	r1, r4
+ 323:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 324:../libraries/CC3000_Host_Driver/nvmem.c **** 	// Initiate a HCI command
+ 325:../libraries/CC3000_Host_Driver/nvmem.c **** 	hci_command_send(HCI_CMND_NVMEM_CREATE_ENTRY,ptr, NVMEM_CREATE_PARAMS_LEN);
+ 449              		.loc 1 325 0
+ 450 0016 40F20324 		movw	r4, #515
+ 451              	.LVL54:
+ 322:../libraries/CC3000_Host_Driver/nvmem.c **** 	args = UINT32_TO_STREAM(args, ulNewLen);
+ 452              		.loc 1 322 0
+ 453 001a FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 454              	.LVL55:
+ 455              		.loc 1 325 0
+ 456 001e 2946     		mov	r1, r5
+ 457 0020 0822     		movs	r2, #8
+ 458 0022 2046     		mov	r0, r4
+ 459 0024 FFF7FEFF 		bl	hci_command_send
+ 460              	.LVL56:
+ 326:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 327:../libraries/CC3000_Host_Driver/nvmem.c **** 	SimpleLinkWaitEvent(HCI_CMND_NVMEM_CREATE_ENTRY, &retval);
+ 461              		.loc 1 327 0
+ 462 0028 2046     		mov	r0, r4
+ 463 002a 0DF10601 		add	r1, sp, #6
+ 464 002e FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 465              	.LVL57:
+ 328:../libraries/CC3000_Host_Driver/nvmem.c **** 	
+ 329:../libraries/CC3000_Host_Driver/nvmem.c **** 	return(retval);
+ 330:../libraries/CC3000_Host_Driver/nvmem.c **** }
+ 466              		.loc 1 330 0
+ 467 0032 BDF80600 		ldrh	r0, [sp, #6]
+ 468 0036 3EBD     		pop	{r1, r2, r3, r4, r5, pc}
+ 469              	.L25:
+ 470              		.align	2
+ 471              	.L24:
+ 472 0038 00000000 		.word	tSLInformation
+ 473              		.cfi_endproc
+ 474              	.LFE6:
+ 476              		.text
+ 477              	.Letext0:
+ 478              		.file 2 "../libraries/CC3000_Host_Driver/cc3000_common.h"
+ 479              		.file 3 "../libraries/CC3000_Host_Driver/hci.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 nvmem.c
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:19     .text.nvmem_read:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:24     .text.nvmem_read:0000000000000000 nvmem_read
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:107    .text.nvmem_read:0000000000000058 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:112    .text.nvmem_write:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:117    .text.nvmem_write:0000000000000000 nvmem_write
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:201    .text.nvmem_write:0000000000000060 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:206    .text.nvmem_set_mac_address:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:211    .text.nvmem_set_mac_address:0000000000000000 nvmem_set_mac_address
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:239    .text.nvmem_get_mac_address:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:244    .text.nvmem_get_mac_address:0000000000000000 nvmem_get_mac_address
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:272    .text.nvmem_write_patch:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:277    .text.nvmem_write_patch:0000000000000000 nvmem_write_patch
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:350    .text.nvmem_read_sp_version:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:355    .text.nvmem_read_sp_version:0000000000000000 nvmem_read_sp_version
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:405    .text.nvmem_read_sp_version:0000000000000030 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:410    .text.nvmem_create_entry:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:415    .text.nvmem_create_entry:0000000000000000 nvmem_create_entry
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccjlj80V.s:472    .text.nvmem_create_entry:0000000000000038 $d
+                     .debug_frame:0000000000000010 $d
+                           .group:0000000000000000 wm4.1.94ea818a60f77b04fe5add16507b1dca
+                           .group:0000000000000000 wm4.newlib.h.8.a9901dc52d1357e3e94003403d43f8b5
+                           .group:0000000000000000 wm4.features.h.22.b72b3baab2bb2eab3661375590100b6b
+                           .group:0000000000000000 wm4.config.h.193.5fb8ef056cdff92dec3dee9552839d8c
+                           .group:0000000000000000 wm4._ansi.h.23.b5bb84d7ba97d82b5b1dc1826a7ae811
+                           .group:0000000000000000 wm4.stdio.h.31.f48311dde756a2aec27351b58a280fb9
+                           .group:0000000000000000 wm4.stddef.h.187.9e651b6b8b16e149c1353259404973ea
+                           .group:0000000000000000 wm4.stdarg.h.34.3a23a216c0c293b3d2ea2e89281481e6
+                           .group:0000000000000000 wm4._default_types.h.6.5e12cd604db8ce00b62bb2f02708eaf3
+                           .group:0000000000000000 wm4.lock.h.2.9bc98482741e5e2a9450b12934a684ea
+                           .group:0000000000000000 wm4.stddef.h.349.31f4c5baff3fa2689010b32028da9c47
+                           .group:0000000000000000 wm4.reent.h.16.9e42f0e588b85e70b2bf6572af57ce64
+                           .group:0000000000000000 wm4.types.h.23.0d949686bbcadd1621462d4fa1f884f9
+                           .group:0000000000000000 wm4.stddef.h.40.cf962ebbec441b3ac67502735f0765db
+                           .group:0000000000000000 wm4.types.h.2.e9cec8c90ab35f77d9f499e06ae02400
+                           .group:0000000000000000 wm4.types.h.80.1f2c84c0d57dd52dd9936095d9ac218e
+                           .group:0000000000000000 wm4.stdio.h.2.4aa87247282eca6c8f36f9de33d8df1a
+                           .group:0000000000000000 wm4.stdio.h.63.dfdea6580b080784d08faace69b6ed76
+                           .group:0000000000000000 wm4.string.h.8.ef946ad0bc9ad5c970c365dcd1fc4b0a
+                           .group:0000000000000000 wm4.stddef.h.161.e50ff8a9d5d1abbc15641da28ac571bf
+                           .group:0000000000000000 wm4.string.h.86.d5c872ff52e2712c985b588a0ef39f3c
+                           .group:0000000000000000 wm4.stdlib.h.13.603ed7eb09a1561ab06840b7c0fcff58
+                           .group:0000000000000000 wm4.alloca.h.8.dfc0c703c47ec3e69746825b17d9e66d
+                           .group:0000000000000000 wm4.stdlib.h.53.c69c7609933ff56d59c757cec2d13230
+                           .group:0000000000000000 wm4.errno.h.2.ba016d646105af6cad23be83630b6a3f
+                           .group:0000000000000000 wm4.errno.h.9.65044c2b5d8494e43f5986ab0a1d770f
+                           .group:0000000000000000 wm4.stdint.h.10.90b695f550ca6cc3fb08fa83baf01e05
+                           .group:0000000000000000 wm4.cc3000_common.h.58.c968e6f087d13da99b8c4c23daaad62a
+                           .group:0000000000000000 wm4.nvmem.h.65.42722db76093261b66445a6e82c295d5
+                           .group:0000000000000000 wm4.hci.h.36.c53403a55b478473c6d08326a2c2336c
+                           .group:0000000000000000 wm4.socket.h.36.41be4fe54cda6cd3756b284824563e42
+                           .group:0000000000000000 wm4.evnt_handler.h.36.be99e6836a9f57d146a5dafeb0edb1e6
+
+UNDEFINED SYMBOLS
+UINT32_TO_STREAM_f
+hci_command_send
+SimpleLinkWaitEvent
+SimpleLinkWaitData
+tSLInformation
+memcpy
+hci_data_command_send

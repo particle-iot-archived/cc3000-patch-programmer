@@ -1,0 +1,1193 @@
+   1              		.syntax unified
+   2              		.cpu cortex-m3
+   3              		.fpu softvfp
+   4              		.eabi_attribute 20, 1
+   5              		.eabi_attribute 21, 1
+   6              		.eabi_attribute 23, 3
+   7              		.eabi_attribute 24, 1
+   8              		.eabi_attribute 25, 1
+   9              		.eabi_attribute 26, 1
+  10              		.eabi_attribute 30, 4
+  11              		.eabi_attribute 34, 1
+  12              		.eabi_attribute 18, 4
+  13              		.thumb
+  14              		.file	"netapp.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.section	.text.netapp_config_mac_adrress,"ax",%progbits
+  19              		.align	1
+  20              		.global	netapp_config_mac_adrress
+  21              		.thumb
+  22              		.thumb_func
+  24              	netapp_config_mac_adrress:
+  25              	.LFB0:
+  26              		.file 1 "../libraries/CC3000_Host_Driver/netapp.c"
+   1:../libraries/CC3000_Host_Driver/netapp.c **** /*****************************************************************************
+   2:../libraries/CC3000_Host_Driver/netapp.c **** *
+   3:../libraries/CC3000_Host_Driver/netapp.c **** *  netapp.c  - CC3000 Host Driver Implementation.
+   4:../libraries/CC3000_Host_Driver/netapp.c **** *  Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+   5:../libraries/CC3000_Host_Driver/netapp.c **** *
+   6:../libraries/CC3000_Host_Driver/netapp.c **** *  Redistribution and use in source and binary forms, with or without
+   7:../libraries/CC3000_Host_Driver/netapp.c **** *  modification, are permitted provided that the following conditions
+   8:../libraries/CC3000_Host_Driver/netapp.c **** *  are met:
+   9:../libraries/CC3000_Host_Driver/netapp.c **** *
+  10:../libraries/CC3000_Host_Driver/netapp.c **** *    Redistributions of source code must retain the above copyright
+  11:../libraries/CC3000_Host_Driver/netapp.c **** *    notice, this list of conditions and the following disclaimer.
+  12:../libraries/CC3000_Host_Driver/netapp.c **** *
+  13:../libraries/CC3000_Host_Driver/netapp.c **** *    Redistributions in binary form must reproduce the above copyright
+  14:../libraries/CC3000_Host_Driver/netapp.c **** *    notice, this list of conditions and the following disclaimer in the
+  15:../libraries/CC3000_Host_Driver/netapp.c **** *    documentation and/or other materials provided with the   
+  16:../libraries/CC3000_Host_Driver/netapp.c **** *    distribution.
+  17:../libraries/CC3000_Host_Driver/netapp.c **** *
+  18:../libraries/CC3000_Host_Driver/netapp.c **** *    Neither the name of Texas Instruments Incorporated nor the names of
+  19:../libraries/CC3000_Host_Driver/netapp.c **** *    its contributors may be used to endorse or promote products derived
+  20:../libraries/CC3000_Host_Driver/netapp.c **** *    from this software without specific prior written permission.
+  21:../libraries/CC3000_Host_Driver/netapp.c **** *
+  22:../libraries/CC3000_Host_Driver/netapp.c **** *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+  23:../libraries/CC3000_Host_Driver/netapp.c **** *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+  24:../libraries/CC3000_Host_Driver/netapp.c **** *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  25:../libraries/CC3000_Host_Driver/netapp.c **** *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
+  26:../libraries/CC3000_Host_Driver/netapp.c **** *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+  27:../libraries/CC3000_Host_Driver/netapp.c **** *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+  28:../libraries/CC3000_Host_Driver/netapp.c **** *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  29:../libraries/CC3000_Host_Driver/netapp.c **** *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  30:../libraries/CC3000_Host_Driver/netapp.c **** *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+  31:../libraries/CC3000_Host_Driver/netapp.c **** *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+  32:../libraries/CC3000_Host_Driver/netapp.c **** *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  33:../libraries/CC3000_Host_Driver/netapp.c **** *
+  34:../libraries/CC3000_Host_Driver/netapp.c **** *****************************************************************************/
+  35:../libraries/CC3000_Host_Driver/netapp.c **** #include <string.h>
+  36:../libraries/CC3000_Host_Driver/netapp.c **** #include "netapp.h"
+  37:../libraries/CC3000_Host_Driver/netapp.c **** #include "hci.h"
+  38:../libraries/CC3000_Host_Driver/netapp.c **** #include "socket.h"
+  39:../libraries/CC3000_Host_Driver/netapp.c **** #include "evnt_handler.h"
+  40:../libraries/CC3000_Host_Driver/netapp.c **** #include "nvmem.h"
+  41:../libraries/CC3000_Host_Driver/netapp.c **** 
+  42:../libraries/CC3000_Host_Driver/netapp.c **** #define MIN_TIMER_VAL_SECONDS      20
+  43:../libraries/CC3000_Host_Driver/netapp.c **** #define MIN_TIMER_SET(t)    if ((0 != t) && (t < MIN_TIMER_VAL_SECONDS)) \
+  44:../libraries/CC3000_Host_Driver/netapp.c ****                             { \
+  45:../libraries/CC3000_Host_Driver/netapp.c ****                                 t = MIN_TIMER_VAL_SECONDS; \
+  46:../libraries/CC3000_Host_Driver/netapp.c ****                             }
+  47:../libraries/CC3000_Host_Driver/netapp.c **** 
+  48:../libraries/CC3000_Host_Driver/netapp.c **** 
+  49:../libraries/CC3000_Host_Driver/netapp.c **** #define NETAPP_DHCP_PARAMS_LEN 				(20)
+  50:../libraries/CC3000_Host_Driver/netapp.c **** #define NETAPP_SET_TIMER_PARAMS_LEN 		(20)
+  51:../libraries/CC3000_Host_Driver/netapp.c **** #define NETAPP_SET_DEBUG_LEVEL_PARAMS_LEN	(4)
+  52:../libraries/CC3000_Host_Driver/netapp.c **** #define NETAPP_PING_SEND_PARAMS_LEN			(16)
+  53:../libraries/CC3000_Host_Driver/netapp.c **** 
+  54:../libraries/CC3000_Host_Driver/netapp.c **** 
+  55:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+  56:../libraries/CC3000_Host_Driver/netapp.c **** //
+  57:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_config_mac_adrress
+  58:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  59:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  mac   device mac address, 6 bytes. Saved: yes 
+  60:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  61:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return       return on success 0, otherwise error.
+  62:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  63:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief        Configure device MAC address and store it in NVMEM. 
+  64:../libraries/CC3000_Host_Driver/netapp.c **** //!                The value of the MAC address configured through the API will
+  65:../libraries/CC3000_Host_Driver/netapp.c **** //!		             be stored in CC3000 non volatile memory, thus preserved 
+  66:../libraries/CC3000_Host_Driver/netapp.c **** //!                over resets.
+  67:../libraries/CC3000_Host_Driver/netapp.c **** //
+  68:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+  69:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_config_mac_adrress(unsigned char * mac)
+  70:../libraries/CC3000_Host_Driver/netapp.c **** {
+  27              		.loc 1 70 0
+  28              		.cfi_startproc
+  29              		@ args = 0, pretend = 0, frame = 0
+  30              		@ frame_needed = 0, uses_anonymous_args = 0
+  31              	.LVL0:
+  32 0000 08B5     		push	{r3, lr}
+  33              	.LCFI0:
+  34              		.cfi_def_cfa_offset 8
+  35              		.cfi_offset 3, -8
+  36              		.cfi_offset 14, -4
+  71:../libraries/CC3000_Host_Driver/netapp.c **** 	return  nvmem_set_mac_address(mac);
+  37              		.loc 1 71 0
+  38 0002 FFF7FEFF 		bl	nvmem_set_mac_address
+  39              	.LVL1:
+  72:../libraries/CC3000_Host_Driver/netapp.c **** }
+  40              		.loc 1 72 0
+  41 0006 08BD     		pop	{r3, pc}
+  42              		.cfi_endproc
+  43              	.LFE0:
+  45              		.section	.text.netapp_dhcp,"ax",%progbits
+  46              		.align	1
+  47              		.global	netapp_dhcp
+  48              		.thumb
+  49              		.thumb_func
+  51              	netapp_dhcp:
+  52              	.LFB1:
+  73:../libraries/CC3000_Host_Driver/netapp.c **** 
+  74:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+  75:../libraries/CC3000_Host_Driver/netapp.c **** //
+  76:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_dhcp
+  77:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  78:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucIP               device mac address, 6 bytes. Saved: yes 
+  79:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucSubnetMask       device mac address, 6 bytes. Saved: yes 
+  80:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucDefaultGateway   device mac address, 6 bytes. Saved: yes 
+  81:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucDNSServer        device mac address, 6 bytes. Saved: yes 
+  82:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  83:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return       return on success 0, otherwise error.
+  84:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  85:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief       netapp_dhcp is used to configure the network interface, 
+  86:../libraries/CC3000_Host_Driver/netapp.c **** //!               static or dynamic (DHCP).\n In order to activate DHCP mode, 
+  87:../libraries/CC3000_Host_Driver/netapp.c **** //!               aucIP, aucSubnetMask, aucDefaultGateway must be 0.
+  88:../libraries/CC3000_Host_Driver/netapp.c **** //!               The default mode of CC3000 is DHCP mode.
+  89:../libraries/CC3000_Host_Driver/netapp.c **** //!               Note that the configuration is saved in non volatile memory
+  90:../libraries/CC3000_Host_Driver/netapp.c **** //!               and thus preserved over resets.
+  91:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+  92:../libraries/CC3000_Host_Driver/netapp.c **** //! @note         If the mode is altered a reset of CC3000 device is required 
+  93:../libraries/CC3000_Host_Driver/netapp.c **** //!               in order to apply changes.\nAlso note that asynchronous event 
+  94:../libraries/CC3000_Host_Driver/netapp.c **** //!               of DHCP_EVENT, which is generated when an IP address is 
+  95:../libraries/CC3000_Host_Driver/netapp.c **** //!               allocated either by the DHCP server or due to static 
+  96:../libraries/CC3000_Host_Driver/netapp.c **** //!               allocation is generated only upon a connection to the 
+  97:../libraries/CC3000_Host_Driver/netapp.c **** //!               AP was established. 
+  98:../libraries/CC3000_Host_Driver/netapp.c **** //!
+  99:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 100:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_dhcp(unsigned long *aucIP, unsigned long *aucSubnetMask,unsigned long *aucDefaultGatewa
+ 101:../libraries/CC3000_Host_Driver/netapp.c **** {
+  53              		.loc 1 101 0
+  54              		.cfi_startproc
+  55              		@ args = 0, pretend = 0, frame = 8
+  56              		@ frame_needed = 0, uses_anonymous_args = 0
+  57              	.LVL2:
+  58 0000 F7B5     		push	{r0, r1, r2, r4, r5, r6, r7, lr}
+  59              	.LCFI1:
+  60              		.cfi_def_cfa_offset 32
+  61              		.cfi_offset 0, -32
+  62              		.cfi_offset 1, -28
+  63              		.cfi_offset 2, -24
+  64              		.cfi_offset 4, -20
+  65              		.cfi_offset 5, -16
+  66              		.cfi_offset 6, -12
+  67              		.cfi_offset 7, -8
+  68              		.cfi_offset 14, -4
+ 102:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 103:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr;
+ 104:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *args;
+ 105:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 106:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 107:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+  69              		.loc 1 107 0
+  70 0002 1A4C     		ldr	r4, .L12
+ 101:../libraries/CC3000_Host_Driver/netapp.c **** {
+  71              		.loc 1 101 0
+  72 0004 1E46     		mov	r6, r3
+  73              		.loc 1 107 0
+  74 0006 A468     		ldr	r4, [r4, #8]
+  75              	.LVL3:
+ 106:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+  76              		.loc 1 106 0
+  77 0008 FF23     		movs	r3, #255
+  78              	.LVL4:
+  79 000a 8DF80730 		strb	r3, [sp, #7]
+  80              	.LVL5:
+  81              		.loc 1 107 0
+  82 000e 0025     		movs	r5, #0
+  83              	.LVL6:
+  84              	.L3:
+  85              	.LBB2:
+ 108:../libraries/CC3000_Host_Driver/netapp.c **** 	args = (ptr + HEADERS_SIZE_CMD);
+ 109:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 110:../libraries/CC3000_Host_Driver/netapp.c **** 	// Fill in temporary command buffer
+ 111:../libraries/CC3000_Host_Driver/netapp.c **** 	ARRAY_TO_STREAM(args,aucIP,4);
+  86              		.loc 1 111 0 discriminator 2
+  87 0010 475D     		ldrb	r7, [r0, r5]	@ zero_extendqisi2
+ 100:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_dhcp(unsigned long *aucIP, unsigned long *aucSubnetMask,unsigned long *aucDefaultGatewa
+  88              		.loc 1 100 0 discriminator 2
+  89 0012 6319     		adds	r3, r4, r5
+  90 0014 0135     		adds	r5, r5, #1
+  91              		.loc 1 111 0 discriminator 2
+  92 0016 042D     		cmp	r5, #4
+  93 0018 5F72     		strb	r7, [r3, #9]
+  94 001a F9D1     		bne	.L3
+  95              		.loc 1 111 0 is_stmt 0
+  96 001c 0020     		movs	r0, #0
+  97              	.LVL7:
+  98              	.L4:
+  99              	.LBE2:
+ 100              	.LBB3:
+ 112:../libraries/CC3000_Host_Driver/netapp.c **** 	ARRAY_TO_STREAM(args,aucSubnetMask,4);
+ 101              		.loc 1 112 0 is_stmt 1 discriminator 2
+ 102 001e 0D5C     		ldrb	r5, [r1, r0]	@ zero_extendqisi2
+ 100:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_dhcp(unsigned long *aucIP, unsigned long *aucSubnetMask,unsigned long *aucDefaultGatewa
+ 103              		.loc 1 100 0 discriminator 2
+ 104 0020 2318     		adds	r3, r4, r0
+ 105 0022 0130     		adds	r0, r0, #1
+ 106              		.loc 1 112 0 discriminator 2
+ 107 0024 0428     		cmp	r0, #4
+ 108 0026 5D73     		strb	r5, [r3, #13]
+ 109              	.LVL8:
+ 110 0028 F9D1     		bne	.L4
+ 111              		.loc 1 112 0 is_stmt 0
+ 112 002a 0021     		movs	r1, #0
+ 113              	.LVL9:
+ 114              	.L5:
+ 115              	.LBE3:
+ 116              	.LBB4:
+ 113:../libraries/CC3000_Host_Driver/netapp.c **** 	ARRAY_TO_STREAM(args,aucDefaultGateway,4);
+ 117              		.loc 1 113 0 is_stmt 1 discriminator 2
+ 118 002c 505C     		ldrb	r0, [r2, r1]	@ zero_extendqisi2
+ 100:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_dhcp(unsigned long *aucIP, unsigned long *aucSubnetMask,unsigned long *aucDefaultGatewa
+ 119              		.loc 1 100 0 discriminator 2
+ 120 002e 6318     		adds	r3, r4, r1
+ 121 0030 0131     		adds	r1, r1, #1
+ 122              		.loc 1 113 0 discriminator 2
+ 123 0032 0429     		cmp	r1, #4
+ 124 0034 5874     		strb	r0, [r3, #17]
+ 125              	.LVL10:
+ 126 0036 F9D1     		bne	.L5
+ 127              	.LBE4:
+ 114:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, 0);
+ 128              		.loc 1 114 0
+ 129 0038 04F11500 		add	r0, r4, #21
+ 130 003c 0021     		movs	r1, #0
+ 131 003e FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 132              	.LVL11:
+ 133 0042 0022     		movs	r2, #0
+ 134              	.LVL12:
+ 135              	.L6:
+ 136              	.LBB5:
+ 115:../libraries/CC3000_Host_Driver/netapp.c **** 	ARRAY_TO_STREAM(args,aucDNSServer,4);
+ 137              		.loc 1 115 0 discriminator 2
+ 138 0044 B35C     		ldrb	r3, [r6, r2]	@ zero_extendqisi2
+ 139 0046 8354     		strb	r3, [r0, r2]
+ 140 0048 0132     		adds	r2, r2, #1
+ 141 004a 042A     		cmp	r2, #4
+ 142 004c FAD1     		bne	.L6
+ 143              	.LBE5:
+ 116:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 117:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 118:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_DHCP, ptr, NETAPP_DHCP_PARAMS_LEN);
+ 144              		.loc 1 118 0
+ 145 004e 2146     		mov	r1, r4
+ 146 0050 1422     		movs	r2, #20
+ 147 0052 42F20100 		movw	r0, #8193
+ 148 0056 FFF7FEFF 		bl	hci_command_send
+ 149              	.LVL13:
+ 119:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 120:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 121:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_DHCP, &scRet);
+ 150              		.loc 1 121 0
+ 151 005a 42F20100 		movw	r0, #8193
+ 152 005e 0DF10701 		add	r1, sp, #7
+ 153 0062 FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 154              	.LVL14:
+ 122:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 123:../libraries/CC3000_Host_Driver/netapp.c **** 	return(scRet);
+ 124:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 155              		.loc 1 124 0
+ 156 0066 9DF90700 		ldrsb	r0, [sp, #7]
+ 157 006a FEBD     		pop	{r1, r2, r3, r4, r5, r6, r7, pc}
+ 158              	.L13:
+ 159              		.align	2
+ 160              	.L12:
+ 161 006c 00000000 		.word	tSLInformation
+ 162              		.cfi_endproc
+ 163              	.LFE1:
+ 165              		.section	.text.netapp_timeout_values,"ax",%progbits
+ 166              		.align	1
+ 167              		.global	netapp_timeout_values
+ 168              		.thumb
+ 169              		.thumb_func
+ 171              	netapp_timeout_values:
+ 172              	.LFB2:
+ 125:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 126:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 127:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 128:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 129:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_timeout_values
+ 130:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 131:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucDHCP    DHCP lease time request, also impact 
+ 132:../libraries/CC3000_Host_Driver/netapp.c **** //!                     the DHCP renew timeout. Range: [0-0xffffffff] seconds,
+ 133:../libraries/CC3000_Host_Driver/netapp.c **** //!                     0 or 0xffffffff == infinity lease timeout.
+ 134:../libraries/CC3000_Host_Driver/netapp.c **** //!                     Resolution:10 seconds. Influence: only after 
+ 135:../libraries/CC3000_Host_Driver/netapp.c **** //!                     reconnecting to the AP. 
+ 136:../libraries/CC3000_Host_Driver/netapp.c **** //!                     Minimal bound value: MIN_TIMER_VAL_SECONDS - 20 seconds.
+ 137:../libraries/CC3000_Host_Driver/netapp.c **** //!                     The parameter is saved into the CC3000 NVMEM. 
+ 138:../libraries/CC3000_Host_Driver/netapp.c **** //!                     The default value on CC3000 is 14400 seconds.
+ 139:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+ 140:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucARP     ARP refresh timeout, if ARP entry is not updated by
+ 141:../libraries/CC3000_Host_Driver/netapp.c **** //!                     incoming packet, the ARP entry will be  deleted by
+ 142:../libraries/CC3000_Host_Driver/netapp.c **** //!                     the end of the timeout. 
+ 143:../libraries/CC3000_Host_Driver/netapp.c **** //!                     Range: [0-0xffffffff] seconds, 0 == infinity ARP timeout
+ 144:../libraries/CC3000_Host_Driver/netapp.c **** //!                     Resolution: 10 seconds. Influence: on runtime.
+ 145:../libraries/CC3000_Host_Driver/netapp.c **** //!                     Minimal bound value: MIN_TIMER_VAL_SECONDS - 20 seconds
+ 146:../libraries/CC3000_Host_Driver/netapp.c **** //!                     The parameter is saved into the CC3000 NVMEM. 
+ 147:../libraries/CC3000_Host_Driver/netapp.c **** //!	                    The default value on CC3000 is 3600 seconds.
+ 148:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 149:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucKeepalive   Keepalive event sent by the end of keepalive timeout
+ 150:../libraries/CC3000_Host_Driver/netapp.c **** //!                         Range: [0-0xffffffff] seconds, 0 == infinity timeout
+ 151:../libraries/CC3000_Host_Driver/netapp.c **** //!                         Resolution: 10 seconds.
+ 152:../libraries/CC3000_Host_Driver/netapp.c **** //!                         Influence: on runtime.
+ 153:../libraries/CC3000_Host_Driver/netapp.c **** //!                         Minimal bound value: MIN_TIMER_VAL_SECONDS - 20 sec
+ 154:../libraries/CC3000_Host_Driver/netapp.c **** //!                         The parameter is saved into the CC3000 NVMEM. 
+ 155:../libraries/CC3000_Host_Driver/netapp.c **** //!                         The default value on CC3000 is 10 seconds.
+ 156:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 157:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  aucInactivity   Socket inactivity timeout, socket timeout is
+ 158:../libraries/CC3000_Host_Driver/netapp.c **** //!                          refreshed by incoming or outgoing packet, by the
+ 159:../libraries/CC3000_Host_Driver/netapp.c **** //!                          end of the socket timeout the socket will be closed
+ 160:../libraries/CC3000_Host_Driver/netapp.c **** //!                          Range: [0-0xffffffff] sec, 0 == infinity timeout.
+ 161:../libraries/CC3000_Host_Driver/netapp.c **** //!                          Resolution: 10 seconds. Influence: on runtime.
+ 162:../libraries/CC3000_Host_Driver/netapp.c **** //!                          Minimal bound value: MIN_TIMER_VAL_SECONDS - 20 sec
+ 163:../libraries/CC3000_Host_Driver/netapp.c **** //!                          The parameter is saved into the CC3000 NVMEM. 
+ 164:../libraries/CC3000_Host_Driver/netapp.c **** //!	                         The default value on CC3000 is 60 seconds.
+ 165:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 166:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return       return on success 0, otherwise error.
+ 167:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 168:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief       Set new timeout values. Function set new timeout values for: 
+ 169:../libraries/CC3000_Host_Driver/netapp.c **** //!               DHCP lease timeout, ARP  refresh timeout, keepalive event 
+ 170:../libraries/CC3000_Host_Driver/netapp.c **** //!               timeout and socket inactivity timeout 
+ 171:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+ 172:../libraries/CC3000_Host_Driver/netapp.c **** //! @note         If a parameter set to non zero value which is less than 20s,
+ 173:../libraries/CC3000_Host_Driver/netapp.c **** //!               it will be set automatically to 20s.
+ 174:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 175:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 176:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 177:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 178:../libraries/CC3000_Host_Driver/netapp.c **** long 
+ 179:../libraries/CC3000_Host_Driver/netapp.c **** netapp_timeout_values(unsigned long *aucDHCP, unsigned long *aucARP,unsigned long *aucKeepalive,	un
+ 180:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 173              		.loc 1 180 0
+ 174              		.cfi_startproc
+ 175              		@ args = 0, pretend = 0, frame = 8
+ 176              		@ frame_needed = 0, uses_anonymous_args = 0
+ 177              	.LVL15:
+ 178 0000 2DE9F341 		push	{r0, r1, r4, r5, r6, r7, r8, lr}
+ 179              	.LCFI2:
+ 180              		.cfi_def_cfa_offset 32
+ 181              		.cfi_offset 0, -32
+ 182              		.cfi_offset 1, -28
+ 183              		.cfi_offset 4, -24
+ 184              		.cfi_offset 5, -20
+ 185              		.cfi_offset 6, -16
+ 186              		.cfi_offset 7, -12
+ 187              		.cfi_offset 8, -8
+ 188              		.cfi_offset 14, -4
+ 189              		.loc 1 180 0
+ 190 0004 0646     		mov	r6, r0
+ 191 0006 0C46     		mov	r4, r1
+ 181:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 182:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr;
+ 183:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *args;
+ 184:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 185:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 186:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 192              		.loc 1 186 0
+ 193 0008 1E48     		ldr	r0, .L19
+ 194              	.LVL16:
+ 187:../libraries/CC3000_Host_Driver/netapp.c **** 	args = (ptr + HEADERS_SIZE_CMD);
+ 188:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 189:../libraries/CC3000_Host_Driver/netapp.c **** 	// Set minimal values of timers 
+ 190:../libraries/CC3000_Host_Driver/netapp.c **** 	MIN_TIMER_SET(*aucDHCP)
+ 195              		.loc 1 190 0
+ 196 000a 3168     		ldr	r1, [r6, #0]
+ 197              	.LVL17:
+ 180:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 198              		.loc 1 180 0
+ 199 000c 1546     		mov	r5, r2
+ 186:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 200              		.loc 1 186 0
+ 201 000e D0F80880 		ldr	r8, [r0, #8]
+ 202              	.LVL18:
+ 203              		.loc 1 190 0
+ 204 0012 4A1E     		subs	r2, r1, #1
+ 205              	.LVL19:
+ 180:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 206              		.loc 1 180 0
+ 207 0014 1F46     		mov	r7, r3
+ 185:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 208              		.loc 1 185 0
+ 209 0016 FF23     		movs	r3, #255
+ 210              	.LVL20:
+ 211              		.loc 1 190 0
+ 212 0018 122A     		cmp	r2, #18
+ 185:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 213              		.loc 1 185 0
+ 214 001a 8DF80730 		strb	r3, [sp, #7]
+ 215              	.LVL21:
+ 187:../libraries/CC3000_Host_Driver/netapp.c **** 	args = (ptr + HEADERS_SIZE_CMD);
+ 216              		.loc 1 187 0
+ 217 001e 08F10900 		add	r0, r8, #9
+ 218              	.LVL22:
+ 219              		.loc 1 190 0
+ 220 0022 01D8     		bhi	.L15
+ 221              		.loc 1 190 0 is_stmt 0 discriminator 1
+ 222 0024 1423     		movs	r3, #20
+ 223 0026 3360     		str	r3, [r6, #0]
+ 224              	.L15:
+ 191:../libraries/CC3000_Host_Driver/netapp.c ****     MIN_TIMER_SET(*aucARP)
+ 225              		.loc 1 191 0 is_stmt 1
+ 226 0028 2168     		ldr	r1, [r4, #0]
+ 227 002a 4A1E     		subs	r2, r1, #1
+ 228 002c 122A     		cmp	r2, #18
+ 229 002e 01D8     		bhi	.L16
+ 230              		.loc 1 191 0 is_stmt 0 discriminator 1
+ 231 0030 1423     		movs	r3, #20
+ 232 0032 2360     		str	r3, [r4, #0]
+ 233              	.L16:
+ 192:../libraries/CC3000_Host_Driver/netapp.c **** 	MIN_TIMER_SET(*aucKeepalive)
+ 234              		.loc 1 192 0 is_stmt 1
+ 235 0034 2968     		ldr	r1, [r5, #0]
+ 236 0036 4A1E     		subs	r2, r1, #1
+ 237 0038 122A     		cmp	r2, #18
+ 238 003a 01D8     		bhi	.L17
+ 239              		.loc 1 192 0 is_stmt 0 discriminator 1
+ 240 003c 1423     		movs	r3, #20
+ 241 003e 2B60     		str	r3, [r5, #0]
+ 242              	.L17:
+ 193:../libraries/CC3000_Host_Driver/netapp.c **** 	MIN_TIMER_SET(*aucInactivity)
+ 243              		.loc 1 193 0 is_stmt 1
+ 244 0040 3968     		ldr	r1, [r7, #0]
+ 245 0042 4A1E     		subs	r2, r1, #1
+ 246 0044 122A     		cmp	r2, #18
+ 247 0046 01D8     		bhi	.L18
+ 248              		.loc 1 193 0 is_stmt 0 discriminator 1
+ 249 0048 1423     		movs	r3, #20
+ 250 004a 3B60     		str	r3, [r7, #0]
+ 251              	.L18:
+ 194:../libraries/CC3000_Host_Driver/netapp.c **** 					
+ 195:../libraries/CC3000_Host_Driver/netapp.c **** 	// Fill in temporary command buffer
+ 196:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, *aucDHCP);
+ 252              		.loc 1 196 0 is_stmt 1
+ 253 004c 3168     		ldr	r1, [r6, #0]
+ 254 004e FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 255              	.LVL23:
+ 197:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, *aucARP);
+ 256              		.loc 1 197 0
+ 257 0052 2168     		ldr	r1, [r4, #0]
+ 258 0054 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 259              	.LVL24:
+ 198:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, *aucKeepalive);
+ 260              		.loc 1 198 0
+ 261 0058 2968     		ldr	r1, [r5, #0]
+ 262 005a FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 263              	.LVL25:
+ 199:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, *aucInactivity);
+ 264              		.loc 1 199 0
+ 265 005e 3968     		ldr	r1, [r7, #0]
+ 266 0060 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 267              	.LVL26:
+ 200:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 201:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 202:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_SET_TIMERS, ptr, NETAPP_SET_TIMER_PARAMS_LEN);
+ 268              		.loc 1 202 0
+ 269 0064 4146     		mov	r1, r8
+ 270 0066 1422     		movs	r2, #20
+ 271 0068 42F20900 		movw	r0, #8201
+ 272 006c FFF7FEFF 		bl	hci_command_send
+ 273              	.LVL27:
+ 203:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 204:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 205:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_SET_TIMERS, &scRet);
+ 274              		.loc 1 205 0
+ 275 0070 42F20900 		movw	r0, #8201
+ 276 0074 0DF10701 		add	r1, sp, #7
+ 277 0078 FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 278              	.LVL28:
+ 206:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 207:../libraries/CC3000_Host_Driver/netapp.c **** 	return(scRet);
+ 208:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 279              		.loc 1 208 0
+ 280 007c 9DF90700 		ldrsb	r0, [sp, #7]
+ 281 0080 BDE8FC81 		pop	{r2, r3, r4, r5, r6, r7, r8, pc}
+ 282              	.L20:
+ 283              		.align	2
+ 284              	.L19:
+ 285 0084 00000000 		.word	tSLInformation
+ 286              		.cfi_endproc
+ 287              	.LFE2:
+ 289              		.section	.text.netapp_ping_send,"ax",%progbits
+ 290              		.align	1
+ 291              		.global	netapp_ping_send
+ 292              		.thumb
+ 293              		.thumb_func
+ 295              	netapp_ping_send:
+ 296              	.LFB3:
+ 209:../libraries/CC3000_Host_Driver/netapp.c **** #endif
+ 210:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 211:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 212:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 213:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 214:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_ping_send
+ 215:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 216:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  ip              destination IP address
+ 217:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  pingAttempts    number of echo requests to send
+ 218:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  pingSize        send buffer size which may be up to 1400 bytes 
+ 219:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  pingTimeout     Time to wait for a response,in milliseconds.
+ 220:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 221:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return       return on success 0, otherwise error.
+ 222:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 223:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief       send ICMP ECHO_REQUEST to network hosts 
+ 224:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+ 225:../libraries/CC3000_Host_Driver/netapp.c **** //! @note         If an operation finished successfully asynchronous ping report 
+ 226:../libraries/CC3000_Host_Driver/netapp.c **** //!               event will be generated. The report structure is as defined
+ 227:../libraries/CC3000_Host_Driver/netapp.c **** //!               by structure netapp_pingreport_args_t.
+ 228:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 229:../libraries/CC3000_Host_Driver/netapp.c **** //! @warning      Calling this function while a previous Ping Requests are in 
+ 230:../libraries/CC3000_Host_Driver/netapp.c **** //!               progress will stop the previous ping request.
+ 231:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 232:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 233:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 234:../libraries/CC3000_Host_Driver/netapp.c **** long
+ 235:../libraries/CC3000_Host_Driver/netapp.c **** netapp_ping_send(unsigned long *ip, unsigned long ulPingAttempts, unsigned long ulPingSize, unsigne
+ 236:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 297              		.loc 1 236 0
+ 298              		.cfi_startproc
+ 299              		@ args = 0, pretend = 0, frame = 8
+ 300              		@ frame_needed = 0, uses_anonymous_args = 0
+ 301              	.LVL29:
+ 302 0000 2DE9F341 		push	{r0, r1, r4, r5, r6, r7, r8, lr}
+ 303              	.LCFI3:
+ 304              		.cfi_def_cfa_offset 32
+ 305              		.cfi_offset 0, -32
+ 306              		.cfi_offset 1, -28
+ 307              		.cfi_offset 4, -24
+ 308              		.cfi_offset 5, -20
+ 309              		.cfi_offset 6, -16
+ 310              		.cfi_offset 7, -12
+ 311              		.cfi_offset 8, -8
+ 312              		.cfi_offset 14, -4
+ 313              		.loc 1 236 0
+ 314 0004 8646     		mov	lr, r0
+ 237:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 238:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr, *args;
+ 239:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 240:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 241:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 315              		.loc 1 241 0
+ 316 0006 1348     		ldr	r0, .L22
+ 317              	.LVL30:
+ 236:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 318              		.loc 1 236 0
+ 319 0008 0D46     		mov	r5, r1
+ 320              		.loc 1 241 0
+ 321 000a 8668     		ldr	r6, [r0, #8]
+ 322              	.LVL31:
+ 242:../libraries/CC3000_Host_Driver/netapp.c **** 	args = (ptr + HEADERS_SIZE_CMD);
+ 243:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 244:../libraries/CC3000_Host_Driver/netapp.c **** 	// Fill in temporary command buffer
+ 245:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, *ip);
+ 323              		.loc 1 245 0
+ 324 000c DEF80010 		ldr	r1, [lr, #0]
+ 325              	.LVL32:
+ 236:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 326              		.loc 1 236 0
+ 327 0010 9846     		mov	r8, r3
+ 240:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 328              		.loc 1 240 0
+ 329 0012 02AC     		add	r4, sp, #8
+ 330 0014 FF23     		movs	r3, #255
+ 331              	.LVL33:
+ 332              		.loc 1 245 0
+ 333 0016 06F10900 		add	r0, r6, #9
+ 334              	.LVL34:
+ 240:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 335              		.loc 1 240 0
+ 336 001a 04F8013D 		strb	r3, [r4, #-1]!
+ 337              	.LVL35:
+ 236:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 338              		.loc 1 236 0
+ 339 001e 1746     		mov	r7, r2
+ 340              		.loc 1 245 0
+ 341 0020 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 342              	.LVL36:
+ 246:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, ulPingAttempts);
+ 343              		.loc 1 246 0
+ 344 0024 2946     		mov	r1, r5
+ 345 0026 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 346              	.LVL37:
+ 247:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, ulPingSize);
+ 347              		.loc 1 247 0
+ 348 002a 3946     		mov	r1, r7
+ 349 002c FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 350              	.LVL38:
+ 248:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, ulPingTimeout);
+ 249:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 250:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 251:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_PING_SEND, ptr, NETAPP_PING_SEND_PARAMS_LEN);
+ 351              		.loc 1 251 0
+ 352 0030 42F20205 		movw	r5, #8194
+ 353              	.LVL39:
+ 248:../libraries/CC3000_Host_Driver/netapp.c **** 	args = UINT32_TO_STREAM(args, ulPingTimeout);
+ 354              		.loc 1 248 0
+ 355 0034 4146     		mov	r1, r8
+ 356 0036 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 357              	.LVL40:
+ 358              		.loc 1 251 0
+ 359 003a 3146     		mov	r1, r6
+ 360 003c 1022     		movs	r2, #16
+ 361 003e 2846     		mov	r0, r5
+ 362 0040 FFF7FEFF 		bl	hci_command_send
+ 363              	.LVL41:
+ 252:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 253:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 254:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_PING_SEND, &scRet);
+ 364              		.loc 1 254 0
+ 365 0044 2846     		mov	r0, r5
+ 366 0046 2146     		mov	r1, r4
+ 367 0048 FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 368              	.LVL42:
+ 255:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 256:../libraries/CC3000_Host_Driver/netapp.c **** 	return(scRet);
+ 257:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 369              		.loc 1 257 0
+ 370 004c 9DF90700 		ldrsb	r0, [sp, #7]
+ 371 0050 BDE8FC81 		pop	{r2, r3, r4, r5, r6, r7, r8, pc}
+ 372              	.L23:
+ 373              		.align	2
+ 374              	.L22:
+ 375 0054 00000000 		.word	tSLInformation
+ 376              		.cfi_endproc
+ 377              	.LFE3:
+ 379              		.section	.text.netapp_ping_report,"ax",%progbits
+ 380              		.align	1
+ 381              		.global	netapp_ping_report
+ 382              		.thumb
+ 383              		.thumb_func
+ 385              	netapp_ping_report:
+ 386              	.LFB4:
+ 258:../libraries/CC3000_Host_Driver/netapp.c **** #endif
+ 259:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 260:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 261:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 262:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_ping_report
+ 263:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 264:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  none
+ 265:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 266:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return  none
+ 267:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 268:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief   Request for ping status. This API triggers the CC3000 to send 
+ 269:../libraries/CC3000_Host_Driver/netapp.c **** //!           asynchronous events: HCI_EVNT_WLAN_ASYNC_PING_REPORT.
+ 270:../libraries/CC3000_Host_Driver/netapp.c **** //!           This event will carry  the report structure:
+ 271:../libraries/CC3000_Host_Driver/netapp.c **** //!           netapp_pingreport_args_t. This structure is filled in with ping
+ 272:../libraries/CC3000_Host_Driver/netapp.c **** //!           results up till point of triggering API.
+ 273:../libraries/CC3000_Host_Driver/netapp.c **** //!           netapp_pingreport_args_t:\n packets_sent - echo sent,
+ 274:../libraries/CC3000_Host_Driver/netapp.c **** //!           packets_received - echo reply, min_round_time - minimum
+ 275:../libraries/CC3000_Host_Driver/netapp.c **** //!           round time, max_round_time - max round time,
+ 276:../libraries/CC3000_Host_Driver/netapp.c **** //!           avg_round_time - average round time
+ 277:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+ 278:../libraries/CC3000_Host_Driver/netapp.c **** //! @note     When a ping operation is not active, the returned structure 
+ 279:../libraries/CC3000_Host_Driver/netapp.c **** //!           fields are 0.
+ 280:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 281:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 282:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 283:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 284:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 285:../libraries/CC3000_Host_Driver/netapp.c **** void netapp_ping_report()
+ 286:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 387              		.loc 1 286 0
+ 388              		.cfi_startproc
+ 389              		@ args = 0, pretend = 0, frame = 8
+ 390              		@ frame_needed = 0, uses_anonymous_args = 0
+ 391 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 392              	.LCFI4:
+ 393              		.cfi_def_cfa_offset 24
+ 394              		.cfi_offset 0, -24
+ 395              		.cfi_offset 1, -20
+ 396              		.cfi_offset 2, -16
+ 397              		.cfi_offset 4, -12
+ 398              		.cfi_offset 5, -8
+ 399              		.cfi_offset 14, -4
+ 287:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr;
+ 288:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 400              		.loc 1 288 0
+ 401 0002 084B     		ldr	r3, .L25
+ 289:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 290:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 291:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 402              		.loc 1 291 0
+ 403 0004 02AC     		add	r4, sp, #8
+ 404 0006 FF20     		movs	r0, #255
+ 292:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 293:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 294:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_PING_REPORT, ptr, 0);
+ 405              		.loc 1 294 0
+ 406 0008 42F20305 		movw	r5, #8195
+ 291:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 407              		.loc 1 291 0
+ 408 000c 04F8010D 		strb	r0, [r4, #-1]!
+ 409              	.LVL43:
+ 288:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 410              		.loc 1 288 0
+ 411 0010 9968     		ldr	r1, [r3, #8]
+ 412              	.LVL44:
+ 413              		.loc 1 294 0
+ 414 0012 2846     		mov	r0, r5
+ 415 0014 0022     		movs	r2, #0
+ 416 0016 FFF7FEFF 		bl	hci_command_send
+ 417              	.LVL45:
+ 295:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 296:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 297:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_PING_REPORT, &scRet); 
+ 418              		.loc 1 297 0
+ 419 001a 2846     		mov	r0, r5
+ 420 001c 2146     		mov	r1, r4
+ 421 001e FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 422              	.LVL46:
+ 298:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 423              		.loc 1 298 0
+ 424 0022 3EBD     		pop	{r1, r2, r3, r4, r5, pc}
+ 425              	.L26:
+ 426              		.align	2
+ 427              	.L25:
+ 428 0024 00000000 		.word	tSLInformation
+ 429              		.cfi_endproc
+ 430              	.LFE4:
+ 432              		.section	.text.netapp_ping_stop,"ax",%progbits
+ 433              		.align	1
+ 434              		.global	netapp_ping_stop
+ 435              		.thumb
+ 436              		.thumb_func
+ 438              	netapp_ping_stop:
+ 439              	.LFB5:
+ 299:../libraries/CC3000_Host_Driver/netapp.c **** #endif
+ 300:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 301:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 302:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 303:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_ping_stop
+ 304:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 305:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  none
+ 306:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 307:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return  On success, zero is returned. On error, -1 is returned.      
+ 308:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 309:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief   Stop any ping request.
+ 310:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+ 311:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 312:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 313:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 314:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 315:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_ping_stop()
+ 316:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 440              		.loc 1 316 0
+ 441              		.cfi_startproc
+ 442              		@ args = 0, pretend = 0, frame = 8
+ 443              		@ frame_needed = 0, uses_anonymous_args = 0
+ 444 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 445              	.LCFI5:
+ 446              		.cfi_def_cfa_offset 24
+ 447              		.cfi_offset 0, -24
+ 448              		.cfi_offset 1, -20
+ 449              		.cfi_offset 2, -16
+ 450              		.cfi_offset 4, -12
+ 451              		.cfi_offset 5, -8
+ 452              		.cfi_offset 14, -4
+ 317:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 318:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr;
+ 319:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 320:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 321:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 453              		.loc 1 321 0
+ 454 0002 0948     		ldr	r0, .L28
+ 320:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 455              		.loc 1 320 0
+ 456 0004 FF23     		movs	r3, #255
+ 457 0006 02AC     		add	r4, sp, #8
+ 322:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 323:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 324:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_PING_STOP, ptr, 0);
+ 458              		.loc 1 324 0
+ 459 0008 42F20405 		movw	r5, #8196
+ 320:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 460              		.loc 1 320 0
+ 461 000c 04F8013D 		strb	r3, [r4, #-1]!
+ 462              	.LVL47:
+ 321:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 463              		.loc 1 321 0
+ 464 0010 8168     		ldr	r1, [r0, #8]
+ 465              	.LVL48:
+ 466              		.loc 1 324 0
+ 467 0012 0022     		movs	r2, #0
+ 468 0014 2846     		mov	r0, r5
+ 469 0016 FFF7FEFF 		bl	hci_command_send
+ 470              	.LVL49:
+ 325:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 326:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 327:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_PING_STOP, &scRet);
+ 471              		.loc 1 327 0
+ 472 001a 2846     		mov	r0, r5
+ 473 001c 2146     		mov	r1, r4
+ 474 001e FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 475              	.LVL50:
+ 328:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 329:../libraries/CC3000_Host_Driver/netapp.c **** 	return(scRet);
+ 330:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 476              		.loc 1 330 0
+ 477 0022 9DF90700 		ldrsb	r0, [sp, #7]
+ 478 0026 3EBD     		pop	{r1, r2, r3, r4, r5, pc}
+ 479              	.L29:
+ 480              		.align	2
+ 481              	.L28:
+ 482 0028 00000000 		.word	tSLInformation
+ 483              		.cfi_endproc
+ 484              	.LFE5:
+ 486              		.section	.text.netapp_ipconfig,"ax",%progbits
+ 487              		.align	1
+ 488              		.global	netapp_ipconfig
+ 489              		.thumb
+ 490              		.thumb_func
+ 492              	netapp_ipconfig:
+ 493              	.LFB6:
+ 331:../libraries/CC3000_Host_Driver/netapp.c **** #endif
+ 332:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 333:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 334:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 335:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_ipconfig
+ 336:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 337:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param[out]  ipconfig  This argument is a pointer to a 
+ 338:../libraries/CC3000_Host_Driver/netapp.c **** //!                         tNetappIpconfigRetArgs structure. This structure is
+ 339:../libraries/CC3000_Host_Driver/netapp.c **** //!                         filled in with the network interface configuration.
+ 340:../libraries/CC3000_Host_Driver/netapp.c **** //!                         tNetappIpconfigRetArgs:\n aucIP - ip address,
+ 341:../libraries/CC3000_Host_Driver/netapp.c **** //!                         aucSubnetMask - mask, aucDefaultGateway - default
+ 342:../libraries/CC3000_Host_Driver/netapp.c **** //!                         gateway address, aucDHCPServer - dhcp server address
+ 343:../libraries/CC3000_Host_Driver/netapp.c **** //!                         aucDNSServer - dns server address, uaMacAddr - mac
+ 344:../libraries/CC3000_Host_Driver/netapp.c **** //!                         address, uaSSID - connected AP ssid
+ 345:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 346:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return  none
+ 347:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 348:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief   Obtain the CC3000 Network interface information.
+ 349:../libraries/CC3000_Host_Driver/netapp.c **** //!           Note that the information is available only after the WLAN
+ 350:../libraries/CC3000_Host_Driver/netapp.c **** //!       		connection was established. Calling this function before
+ 351:../libraries/CC3000_Host_Driver/netapp.c **** //!           associated, will cause non-defined values to be returned.
+ 352:../libraries/CC3000_Host_Driver/netapp.c **** //!	 
+ 353:../libraries/CC3000_Host_Driver/netapp.c **** //! @note     The function is useful for figuring out the IP Configuration of
+ 354:../libraries/CC3000_Host_Driver/netapp.c **** //!       		the device when DHCP is used and for figuring out the SSID of
+ 355:../libraries/CC3000_Host_Driver/netapp.c **** //!       		the Wireless network the device is associated with.
+ 356:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 357:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 358:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 359:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 360:../libraries/CC3000_Host_Driver/netapp.c **** void netapp_ipconfig( tNetappIpconfigRetArgs * ipconfig )
+ 361:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 494              		.loc 1 361 0
+ 495              		.cfi_startproc
+ 496              		@ args = 0, pretend = 0, frame = 0
+ 497              		@ frame_needed = 0, uses_anonymous_args = 0
+ 498              	.LVL51:
+ 499 0000 38B5     		push	{r3, r4, r5, lr}
+ 500              	.LCFI6:
+ 501              		.cfi_def_cfa_offset 16
+ 502              		.cfi_offset 3, -16
+ 503              		.cfi_offset 4, -12
+ 504              		.cfi_offset 5, -8
+ 505              		.cfi_offset 14, -4
+ 362:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr;
+ 363:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 364:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 506              		.loc 1 364 0
+ 507 0002 074B     		ldr	r3, .L31
+ 365:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 366:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 367:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_IPCONFIG, ptr, 0);
+ 508              		.loc 1 367 0
+ 509 0004 42F20504 		movw	r4, #8197
+ 361:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 510              		.loc 1 361 0
+ 511 0008 0546     		mov	r5, r0
+ 364:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 512              		.loc 1 364 0
+ 513 000a 9968     		ldr	r1, [r3, #8]
+ 514              	.LVL52:
+ 515              		.loc 1 367 0
+ 516 000c 2046     		mov	r0, r4
+ 517              	.LVL53:
+ 518 000e 0022     		movs	r2, #0
+ 519 0010 FFF7FEFF 		bl	hci_command_send
+ 520              	.LVL54:
+ 368:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 369:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 370:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_IPCONFIG, ipconfig );
+ 521              		.loc 1 370 0
+ 522 0014 2046     		mov	r0, r4
+ 523 0016 2946     		mov	r1, r5
+ 371:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 372:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 524              		.loc 1 372 0
+ 525 0018 BDE83840 		pop	{r3, r4, r5, lr}
+ 370:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_IPCONFIG, ipconfig );
+ 526              		.loc 1 370 0
+ 527 001c FFF7FEBF 		b	SimpleLinkWaitEvent
+ 528              	.LVL55:
+ 529              	.L32:
+ 530              		.align	2
+ 531              	.L31:
+ 532 0020 00000000 		.word	tSLInformation
+ 533              		.cfi_endproc
+ 534              	.LFE6:
+ 536              		.section	.text.netapp_arp_flush,"ax",%progbits
+ 537              		.align	1
+ 538              		.global	netapp_arp_flush
+ 539              		.thumb
+ 540              		.thumb_func
+ 542              	netapp_arp_flush:
+ 543              	.LFB7:
+ 373:../libraries/CC3000_Host_Driver/netapp.c **** #else
+ 374:../libraries/CC3000_Host_Driver/netapp.c **** void netapp_ipconfig( tNetappIpconfigRetArgs * ipconfig )
+ 375:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 376:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 377:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 378:../libraries/CC3000_Host_Driver/netapp.c **** #endif
+ 379:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 380:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 381:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 382:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_arp_flush
+ 383:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 384:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param  none
+ 385:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 386:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return  none
+ 387:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 388:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief  Flushes ARP table
+ 389:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 390:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 391:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 392:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 393:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_arp_flush(void)
+ 394:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 544              		.loc 1 394 0
+ 545              		.cfi_startproc
+ 546              		@ args = 0, pretend = 0, frame = 8
+ 547              		@ frame_needed = 0, uses_anonymous_args = 0
+ 548 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 549              	.LCFI7:
+ 550              		.cfi_def_cfa_offset 24
+ 551              		.cfi_offset 0, -24
+ 552              		.cfi_offset 1, -20
+ 553              		.cfi_offset 2, -16
+ 554              		.cfi_offset 4, -12
+ 555              		.cfi_offset 5, -8
+ 556              		.cfi_offset 14, -4
+ 395:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 396:../libraries/CC3000_Host_Driver/netapp.c **** 	unsigned char *ptr;
+ 397:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 398:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 399:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 557              		.loc 1 399 0
+ 558 0002 0948     		ldr	r0, .L34
+ 398:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 559              		.loc 1 398 0
+ 560 0004 FF23     		movs	r3, #255
+ 561 0006 02AC     		add	r4, sp, #8
+ 400:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 401:../libraries/CC3000_Host_Driver/netapp.c **** 	// Initiate a HCI command
+ 402:../libraries/CC3000_Host_Driver/netapp.c **** 	hci_command_send(HCI_NETAPP_ARP_FLUSH, ptr, 0);
+ 562              		.loc 1 402 0
+ 563 0008 42F20605 		movw	r5, #8198
+ 398:../libraries/CC3000_Host_Driver/netapp.c **** 	scRet = EFAIL;
+ 564              		.loc 1 398 0
+ 565 000c 04F8013D 		strb	r3, [r4, #-1]!
+ 566              	.LVL56:
+ 399:../libraries/CC3000_Host_Driver/netapp.c **** 	ptr = tSLInformation.pucTxCommandBuffer;
+ 567              		.loc 1 399 0
+ 568 0010 8168     		ldr	r1, [r0, #8]
+ 569              	.LVL57:
+ 570              		.loc 1 402 0
+ 571 0012 0022     		movs	r2, #0
+ 572 0014 2846     		mov	r0, r5
+ 573 0016 FFF7FEFF 		bl	hci_command_send
+ 574              	.LVL58:
+ 403:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 404:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 405:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_ARP_FLUSH, &scRet);
+ 575              		.loc 1 405 0
+ 576 001a 2846     		mov	r0, r5
+ 577 001c 2146     		mov	r1, r4
+ 578 001e FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 579              	.LVL59:
+ 406:../libraries/CC3000_Host_Driver/netapp.c **** 	
+ 407:../libraries/CC3000_Host_Driver/netapp.c **** 	return(scRet);
+ 408:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 580              		.loc 1 408 0
+ 581 0022 9DF90700 		ldrsb	r0, [sp, #7]
+ 582 0026 3EBD     		pop	{r1, r2, r3, r4, r5, pc}
+ 583              	.L35:
+ 584              		.align	2
+ 585              	.L34:
+ 586 0028 00000000 		.word	tSLInformation
+ 587              		.cfi_endproc
+ 588              	.LFE7:
+ 590              		.section	.text.netapp_set_debug_level,"ax",%progbits
+ 591              		.align	1
+ 592              		.global	netapp_set_debug_level
+ 593              		.thumb
+ 594              		.thumb_func
+ 596              	netapp_set_debug_level:
+ 597              	.LFB8:
+ 409:../libraries/CC3000_Host_Driver/netapp.c **** #endif
+ 410:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 411:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 412:../libraries/CC3000_Host_Driver/netapp.c **** //
+ 413:../libraries/CC3000_Host_Driver/netapp.c **** //!  netapp_set_debug_level
+ 414:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 415:../libraries/CC3000_Host_Driver/netapp.c **** //!  @param[in]      level    debug level. Bitwise [0-8],
+ 416:../libraries/CC3000_Host_Driver/netapp.c **** //!                         0(disable)or 1(enable).\n Bitwise map: 0 - Critical
+ 417:../libraries/CC3000_Host_Driver/netapp.c **** //!                         message, 1 information message, 2 - core messages, 3 -
+ 418:../libraries/CC3000_Host_Driver/netapp.c **** //!                         HCI messages, 4 - Network stack messages, 5 - wlan
+ 419:../libraries/CC3000_Host_Driver/netapp.c **** //!                         messages, 6 - wlan driver messages, 7 - epprom messages,
+ 420:../libraries/CC3000_Host_Driver/netapp.c **** //!                         8 - general messages. Default: 0x13f. Saved: no
+ 421:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 422:../libraries/CC3000_Host_Driver/netapp.c **** //!  @return  On success, zero is returned. On error, -1 is returned
+ 423:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 424:../libraries/CC3000_Host_Driver/netapp.c **** //!  @brief   Debug messages sent via the UART debug channel, this function
+ 425:../libraries/CC3000_Host_Driver/netapp.c **** //!              enable/disable the debug level
+ 426:../libraries/CC3000_Host_Driver/netapp.c **** //!
+ 427:../libraries/CC3000_Host_Driver/netapp.c **** //*****************************************************************************
+ 428:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 429:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 430:../libraries/CC3000_Host_Driver/netapp.c **** #ifndef CC3000_TINY_DRIVER
+ 431:../libraries/CC3000_Host_Driver/netapp.c **** long netapp_set_debug_level(unsigned long ulLevel)
+ 432:../libraries/CC3000_Host_Driver/netapp.c **** {
+ 598              		.loc 1 432 0
+ 599              		.cfi_startproc
+ 600              		@ args = 0, pretend = 0, frame = 8
+ 601              		@ frame_needed = 0, uses_anonymous_args = 0
+ 602              	.LVL60:
+ 603 0000 73B5     		push	{r0, r1, r4, r5, r6, lr}
+ 604              	.LCFI8:
+ 605              		.cfi_def_cfa_offset 24
+ 606              		.cfi_offset 0, -24
+ 607              		.cfi_offset 1, -20
+ 608              		.cfi_offset 4, -16
+ 609              		.cfi_offset 5, -12
+ 610              		.cfi_offset 6, -8
+ 611              		.cfi_offset 14, -4
+ 612              		.loc 1 432 0
+ 613 0002 0146     		mov	r1, r0
+ 433:../libraries/CC3000_Host_Driver/netapp.c **** 	signed char scRet;
+ 434:../libraries/CC3000_Host_Driver/netapp.c ****     unsigned char *ptr, *args;
+ 435:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 436:../libraries/CC3000_Host_Driver/netapp.c ****     scRet = EFAIL;
+ 437:../libraries/CC3000_Host_Driver/netapp.c ****     ptr = tSLInformation.pucTxCommandBuffer;
+ 614              		.loc 1 437 0
+ 615 0004 0B48     		ldr	r0, .L37
+ 616              	.LVL61:
+ 436:../libraries/CC3000_Host_Driver/netapp.c ****     scRet = EFAIL;
+ 617              		.loc 1 436 0
+ 618 0006 FF23     		movs	r3, #255
+ 619              		.loc 1 437 0
+ 620 0008 8668     		ldr	r6, [r0, #8]
+ 621              	.LVL62:
+ 436:../libraries/CC3000_Host_Driver/netapp.c ****     scRet = EFAIL;
+ 622              		.loc 1 436 0
+ 623 000a 02AC     		add	r4, sp, #8
+ 438:../libraries/CC3000_Host_Driver/netapp.c ****     args = (ptr + HEADERS_SIZE_CMD);
+ 439:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 440:../libraries/CC3000_Host_Driver/netapp.c ****     //
+ 441:../libraries/CC3000_Host_Driver/netapp.c ****     // Fill in temporary command buffer
+ 442:../libraries/CC3000_Host_Driver/netapp.c ****     //
+ 443:../libraries/CC3000_Host_Driver/netapp.c ****     args = UINT32_TO_STREAM(args, ulLevel);
+ 444:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 445:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 446:../libraries/CC3000_Host_Driver/netapp.c ****     //
+ 447:../libraries/CC3000_Host_Driver/netapp.c ****     // Initiate a HCI command
+ 448:../libraries/CC3000_Host_Driver/netapp.c ****     //
+ 449:../libraries/CC3000_Host_Driver/netapp.c ****     hci_command_send(HCI_NETAPP_SET_DEBUG_LEVEL, ptr, NETAPP_SET_DEBUG_LEVEL_PARAMS_LEN);
+ 624              		.loc 1 449 0
+ 625 000c 42F20805 		movw	r5, #8200
+ 443:../libraries/CC3000_Host_Driver/netapp.c ****     args = UINT32_TO_STREAM(args, ulLevel);
+ 626              		.loc 1 443 0
+ 627 0010 06F10900 		add	r0, r6, #9
+ 628              	.LVL63:
+ 436:../libraries/CC3000_Host_Driver/netapp.c ****     scRet = EFAIL;
+ 629              		.loc 1 436 0
+ 630 0014 04F8013D 		strb	r3, [r4, #-1]!
+ 631              	.LVL64:
+ 443:../libraries/CC3000_Host_Driver/netapp.c ****     args = UINT32_TO_STREAM(args, ulLevel);
+ 632              		.loc 1 443 0
+ 633 0018 FFF7FEFF 		bl	UINT32_TO_STREAM_f
+ 634              	.LVL65:
+ 635              		.loc 1 449 0
+ 636 001c 3146     		mov	r1, r6
+ 637 001e 0422     		movs	r2, #4
+ 638 0020 2846     		mov	r0, r5
+ 639 0022 FFF7FEFF 		bl	hci_command_send
+ 640              	.LVL66:
+ 450:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 451:../libraries/CC3000_Host_Driver/netapp.c ****     //
+ 452:../libraries/CC3000_Host_Driver/netapp.c **** 	// Wait for command complete event
+ 453:../libraries/CC3000_Host_Driver/netapp.c **** 	//
+ 454:../libraries/CC3000_Host_Driver/netapp.c **** 	SimpleLinkWaitEvent(HCI_NETAPP_SET_DEBUG_LEVEL, &scRet);
+ 641              		.loc 1 454 0
+ 642 0026 2846     		mov	r0, r5
+ 643 0028 2146     		mov	r1, r4
+ 644 002a FFF7FEFF 		bl	SimpleLinkWaitEvent
+ 645              	.LVL67:
+ 455:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 456:../libraries/CC3000_Host_Driver/netapp.c ****     return(scRet);
+ 457:../libraries/CC3000_Host_Driver/netapp.c **** 
+ 458:../libraries/CC3000_Host_Driver/netapp.c **** }
+ 646              		.loc 1 458 0
+ 647 002e 9DF90700 		ldrsb	r0, [sp, #7]
+ 648 0032 7CBD     		pop	{r2, r3, r4, r5, r6, pc}
+ 649              	.L38:
+ 650              		.align	2
+ 651              	.L37:
+ 652 0034 00000000 		.word	tSLInformation
+ 653              		.cfi_endproc
+ 654              	.LFE8:
+ 656              		.text
+ 657              	.Letext0:
+ 658              		.file 2 "../libraries/CC3000_Host_Driver/netapp.h"
+ 659              		.file 3 "../libraries/CC3000_Host_Driver/cc3000_common.h"
+ 660              		.file 4 "../libraries/CC3000_Host_Driver/nvmem.h"
+ 661              		.file 5 "../libraries/CC3000_Host_Driver/hci.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 netapp.c
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:19     .text.netapp_config_mac_adrress:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:24     .text.netapp_config_mac_adrress:0000000000000000 netapp_config_mac_adrress
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:46     .text.netapp_dhcp:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:51     .text.netapp_dhcp:0000000000000000 netapp_dhcp
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:161    .text.netapp_dhcp:000000000000006c $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:166    .text.netapp_timeout_values:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:171    .text.netapp_timeout_values:0000000000000000 netapp_timeout_values
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:285    .text.netapp_timeout_values:0000000000000084 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:290    .text.netapp_ping_send:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:295    .text.netapp_ping_send:0000000000000000 netapp_ping_send
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:375    .text.netapp_ping_send:0000000000000054 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:380    .text.netapp_ping_report:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:385    .text.netapp_ping_report:0000000000000000 netapp_ping_report
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:428    .text.netapp_ping_report:0000000000000024 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:433    .text.netapp_ping_stop:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:438    .text.netapp_ping_stop:0000000000000000 netapp_ping_stop
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:482    .text.netapp_ping_stop:0000000000000028 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:487    .text.netapp_ipconfig:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:492    .text.netapp_ipconfig:0000000000000000 netapp_ipconfig
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:532    .text.netapp_ipconfig:0000000000000020 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:537    .text.netapp_arp_flush:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:542    .text.netapp_arp_flush:0000000000000000 netapp_arp_flush
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:586    .text.netapp_arp_flush:0000000000000028 $d
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:591    .text.netapp_set_debug_level:0000000000000000 $t
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:596    .text.netapp_set_debug_level:0000000000000000 netapp_set_debug_level
+/var/folders/d1/846xqcps64v4wybnmd7kk8540000gn/T//ccmgE1hG.s:652    .text.netapp_set_debug_level:0000000000000034 $d
+                     .debug_frame:0000000000000010 $d
+                           .group:0000000000000000 wm4.1.94ea818a60f77b04fe5add16507b1dca
+                           .group:0000000000000000 wm4.newlib.h.8.a9901dc52d1357e3e94003403d43f8b5
+                           .group:0000000000000000 wm4.features.h.22.b72b3baab2bb2eab3661375590100b6b
+                           .group:0000000000000000 wm4.config.h.193.5fb8ef056cdff92dec3dee9552839d8c
+                           .group:0000000000000000 wm4._ansi.h.23.b5bb84d7ba97d82b5b1dc1826a7ae811
+                           .group:0000000000000000 wm4._default_types.h.6.5e12cd604db8ce00b62bb2f02708eaf3
+                           .group:0000000000000000 wm4.lock.h.2.9bc98482741e5e2a9450b12934a684ea
+                           .group:0000000000000000 wm4.stddef.h.349.31f4c5baff3fa2689010b32028da9c47
+                           .group:0000000000000000 wm4.reent.h.16.9e42f0e588b85e70b2bf6572af57ce64
+                           .group:0000000000000000 wm4.stddef.h.187.9e651b6b8b16e149c1353259404973ea
+                           .group:0000000000000000 wm4.string.h.17.f8d12df81104836a3f2a5d589ae830d8
+                           .group:0000000000000000 wm4.stdlib.h.13.603ed7eb09a1561ab06840b7c0fcff58
+                           .group:0000000000000000 wm4.stddef.h.235.fb53403984550eba259277227435d55a
+                           .group:0000000000000000 wm4.alloca.h.8.dfc0c703c47ec3e69746825b17d9e66d
+                           .group:0000000000000000 wm4.stdlib.h.53.c69c7609933ff56d59c757cec2d13230
+                           .group:0000000000000000 wm4.errno.h.2.ba016d646105af6cad23be83630b6a3f
+                           .group:0000000000000000 wm4.errno.h.9.65044c2b5d8494e43f5986ab0a1d770f
+                           .group:0000000000000000 wm4.stdint.h.10.90b695f550ca6cc3fb08fa83baf01e05
+                           .group:0000000000000000 wm4.cc3000_common.h.58.c968e6f087d13da99b8c4c23daaad62a
+                           .group:0000000000000000 wm4.hci.h.51.9deb4690145bc08404ecd70e8dadf8e4
+                           .group:0000000000000000 wm4.socket.h.36.41be4fe54cda6cd3756b284824563e42
+                           .group:0000000000000000 wm4.evnt_handler.h.36.be99e6836a9f57d146a5dafeb0edb1e6
+                           .group:0000000000000000 wm4.nvmem.h.36.ee544af6426a64366cdb46d882de9ae2
+
+UNDEFINED SYMBOLS
+nvmem_set_mac_address
+UINT32_TO_STREAM_f
+hci_command_send
+SimpleLinkWaitEvent
+tSLInformation
