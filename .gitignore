@@ -36,3 +36,7 @@ Release/*
 # Raisonance RIDE Project
 RIDE/*
 
+# backup folder
+backup/*
+
+
