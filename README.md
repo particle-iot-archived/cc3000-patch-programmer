@@ -30,3 +30,5 @@ Development Environment Setup:
 12. The LEDs should blink every 200ms to indicate the patching is in progress. When successfully completed, the LEDs should stay ON.
 
 13. Check the "patchVer" variable in the marvin project. The value should be "\001\023" i.e. 1.19
+
+14. To build the project using command line option, cd to the "build" folder and run make.
