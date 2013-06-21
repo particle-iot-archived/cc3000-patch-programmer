@@ -23,12 +23,10 @@ Development Environment Setup:
 
 9. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Linker -> General -> Script file (-T), Browse & select linker file : "linker_stm32f10x_md.ld" for non-dfu based build used for programming the chip using JTAG.
 
-10. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Linker -> General -> Script file (-T), Browse & select linker file : "linker_stm32f10x_md_dfu.ld" and uncomment "#define DFU_BUILD_ENABLE" in platform_config.h for dfu based build used for programming the chip using dfu-util tool.
+10. Program the chips using 9 above, Press the BUTTON to start the patching process.
 
-11. Program the chips using 9 above, Press the BUTTON to start the patching process.
+11. The LEDs should blink every 200ms to indicate the patching is in progress. When successfully completed, the LEDs should stay ON.
 
-12. The LEDs should blink every 200ms to indicate the patching is in progress. When successfully completed, the LEDs should stay ON.
+12. Check the "patchVer" variable in the marvin project. The value should be "\001\023" i.e. 1.19
 
-13. Check the "patchVer" variable in the marvin project. The value should be "\001\023" i.e. 1.19
-
-14. To build the project using command line option, cd to the "build" folder and run make.
+13. To build the project using command line option, cd to the "build" folder and run make.
