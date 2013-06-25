@@ -47,40 +47,26 @@ all: cc3000-patch-programmer.elf secondary-outputs
 
 # Tool invocations
 cc3000-patch-programmer.elf: $(OBJS) $(USER_OBJS)
-	@echo 'Building target: $@'
-	@echo 'Invoking: ARM GCC C Linker'
+	@echo 'Building target..'
 	arm-none-eabi-gcc -T"../linker/linker_stm32f10x_md.ld" -nostartfiles -Xlinker --gc-sections -Wl,-Map,cc3000-patch-programmer.map -mcpu=cortex-m3 -mthumb -g3 -gdwarf-2 -o "cc3000-patch-programmer.elf" $(OBJS) $(USER_OBJS) $(LIBS)
-	@echo 'Finished building target: $@'
-	@echo ' '
 	$(MAKE) --no-print-directory post-build
 
 cc3000-patch-programmer.hex: cc3000-patch-programmer.elf
-	@echo 'Invoking: ARM GNU Create Flash Image'
 	arm-none-eabi-objcopy -O ihex cc3000-patch-programmer.elf  "cc3000-patch-programmer.hex"
-	@echo 'Finished building: $@'
-	@echo ' '
 
 cc3000-patch-programmer.lst: cc3000-patch-programmer.elf
-	@echo 'Invoking: ARM GNU Create Listing'
 	arm-none-eabi-objdump -h -S cc3000-patch-programmer.elf > "cc3000-patch-programmer.lst"
-	@echo 'Finished building: $@'
-	@echo ' '
 
 cc3000-patch-programmer.siz: cc3000-patch-programmer.elf
-	@echo 'Invoking: ARM GNU Print Size'
 	arm-none-eabi-size  --format=berkeley cc3000-patch-programmer.elf
-	@echo 'Finished building: $@'
-	@echo ' '
+	@echo 'Finished building target'
 
 # Other Targets
 clean:
 	-$(RM) $(OBJS)$(C_DEPS)$(ASM_DEPS)$(S_UPPER_DEPS)$(EXECUTABLES)$(SECONDARY_FLASH)$(SECONDARY_LIST)$(SECONDARY_SIZE) cc3000-patch-programmer.map cc3000-patch-programmer.elf cc3000-patch-programmer.bin
-	-@echo ' '
 
 post-build:
-	-@echo 'Create Binary'
 	-arm-none-eabi-objcopy -S -O binary "cc3000-patch-programmer.elf" "cc3000-patch-programmer.bin"
-	-@echo ' '
 
 secondary-outputs: $(SECONDARY_FLASH) $(SECONDARY_LIST) $(SECONDARY_SIZE)
 

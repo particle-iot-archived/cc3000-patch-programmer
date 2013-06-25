@@ -201,16 +201,7 @@ void Delay(uint32_t nTime)
 {
     TimingDelay = nTime;
 
-    // /* Enable the SysTick Counter */
-    // SysTick->CTRL |= SysTick_CTRL_ENABLE;
-
     while(TimingDelay != 0);
-
-    // /* Disable the SysTick Counter */
-    // SysTick->CTRL &= ~SysTick_CTRL_ENABLE;
-
-    // /* Clear the SysTick Counter */
-    // SysTick->VAL = (uint32_t)0x00;
 }
 
 /*******************************************************************************

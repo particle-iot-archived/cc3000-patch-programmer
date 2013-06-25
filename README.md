@@ -5,9 +5,9 @@ TI CC3000 Patch Programmer ported to STM32
 
 Development Environment Setup:
 
-1. Copy .cproject and .project files from "marvin" into "cc3000-patch-programmer" folder.
+1. Copy .cproject and .project files from "core-firmware" into "cc3000-patch-programmer" folder.
 
-2. Search and replace "marvin" with "cc3000-patch-programmer" in the above 2 files.
+2. Search and replace "core-firmware" with "cc3000-patch-programmer" in the above 2 files.
 
 3. In Eclipse, select File -> Import -> Existing Projects into Workspace -> Select root directry: -> Browse and select "cc3000-patch-programmer" folder -> Finish.
 
@@ -27,6 +27,6 @@ Development Environment Setup:
 
 11. The LEDs should blink every 200ms to indicate the patching is in progress. When successfully completed, the LEDs should stay ON.
 
-12. Check the "patchVer" variable in the marvin project. The value should be "\001\023" i.e. 1.19
+12. Check the "patchVer" variable in the core-firmware project. The value should be "\001\023" i.e. 1.19
 
-13. To build the project using command line option, cd to the "build" folder and run make.
+13. Alternatively to build the project using command line option, cd to the "build" folder and run "make clean" followed by "make all".
