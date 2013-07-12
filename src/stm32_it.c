@@ -23,12 +23,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* Extern variables ----------------------------------------------------------*/
+extern __IO uint8_t BUTTON_DEBOUNCED[BUTTONn];
 
 /* Private function prototypes -----------------------------------------------*/
 extern void SPI_DMA_IntHandler(void);
 extern void SPI_EXTI_IntHandler(void);
-
-extern __IO uint8_t BUTTON_DEBOUNCED[BUTTONn];
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -172,6 +171,32 @@ void DMA1_Channel5_IRQHandler(void)
 }
 
 /*******************************************************************************
+ * Function Name  : EXTI2_IRQHandler
+ * Description    : This function handles EXTI2 interrupt request.
+ * Input          : None
+ * Output         : None
+ * Return         : None
+ *******************************************************************************/
+void EXTI2_IRQHandler(void)
+{
+#if defined (USE_SPARK_CORE_V02)
+	if (EXTI_GetITStatus(BUTTON1_EXTI_LINE ) != RESET)
+	{
+		/* Clear the EXTI line pending bit */
+		EXTI_ClearITPendingBit(BUTTON1_EXTI_LINE );
+
+		/* Disable BUTTON1 Interrupt */
+		BUTTON_EXTI_Config(BUTTON1, DISABLE);
+
+		TIM1->CCR4 += UI_TIMER_FREQUENCY;
+
+		/* Enable TIM1 CC4 Interrupt */
+		TIM_ITConfig(TIM1, TIM_IT_CC4, ENABLE);
+	}
+#endif
+}
+
+/*******************************************************************************
  * Function Name  : EXTI15_10_IRQHandler
  * Description    : This function handles EXTI15_10 interrupt request.
  * Input          : None
@@ -188,38 +213,45 @@ void EXTI15_10_IRQHandler(void)
 		SPI_EXTI_IntHandler();
 	}
 
+#if defined (USE_SPARK_CORE_V01)
 	if (EXTI_GetITStatus(BUTTON1_EXTI_LINE ) != RESET)
 	{
-		/* Clear the EXTI line pending flag */
-		EXTI_ClearFlag(BUTTON1_EXTI_LINE );
+		/* Clear the EXTI line pending bit */
+		EXTI_ClearITPendingBit(BUTTON1_EXTI_LINE );
 
-		/* Disable BUTTON1 Interrupts */
+		/* Disable BUTTON1 Interrupt */
 		BUTTON_EXTI_Config(BUTTON1, DISABLE);
 
-	    /* DEBOUNCE_TIMER Enable Counter */
-	    TIM_Cmd(DEBOUNCE_TIMER, ENABLE);
+		TIM1->CCR4 += UI_TIMER_FREQUENCY;
+
+		/* Enable TIM1 CC4 Interrupt */
+		TIM_ITConfig(TIM1, TIM_IT_CC4, ENABLE);
 	}
+#endif
 }
 
 /*******************************************************************************
- * Function Name  : TIM1_UP_IRQHandler
- * Description    : This function handles TIM1 Update interrupt request.
+ * Function Name  : TIM1_CC_IRQHandler
+ * Description    : This function handles TIM1 Capture Compare interrupt request.
  * Input          : None
  * Output         : None
  * Return         : None
  *******************************************************************************/
-void TIM1_UP_IRQHandler(void)
+void TIM1_CC_IRQHandler(void)
 {
-	if (TIM_GetITStatus(DEBOUNCE_TIMER, DEBOUNCE_TIMER_FLAG) != RESET)
+	if (TIM_GetITStatus(TIM1, TIM_IT_CC4) != RESET)
 	{
-		TIM_ClearITPendingBit(DEBOUNCE_TIMER, DEBOUNCE_TIMER_FLAG);
+		TIM_ClearITPendingBit(TIM1, TIM_IT_CC4);
+
+		/* Disable TIM1 CC4 Interrupt */
+		TIM_ITConfig(TIM1, TIM_IT_CC4, DISABLE);
 
 		if (BUTTON_GetState(BUTTON1) == BUTTON1_PRESSED)
 			BUTTON_DEBOUNCED[BUTTON1] = 0x01;
 		else
 			BUTTON_DEBOUNCED[BUTTON1] = 0x00;
 
-		/* Enable BUTTON1 Interrupts */
+		/* Enable BUTTON1 Interrupt */
 		BUTTON_EXTI_Config(BUTTON1, ENABLE);
 	}
 }
