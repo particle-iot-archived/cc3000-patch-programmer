@@ -25,7 +25,6 @@
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-static __IO uint32_t TimingDelay, TimingBUTTON, TimingLED;
 
 __IO uint8_t CC3000_PATCH_APPLIED = 1;
 
@@ -140,7 +139,7 @@ unsigned short 	file_address[NVMEM_RM_FILEID + 1];
 unsigned short 	file_length[NVMEM_RM_FILEID + 1];
 
 // Smart Config Prefix
-char aucCC3000_prefix[] = {'T', 'T', 'T'};
+char auc_prefix[] = {'T', 'T', 'T'};
 
 // 2 dim array to store address and length of new FAT
 unsigned short aFATEntries[2][NVMEM_RM_FILEID + 1] =
@@ -166,6 +165,8 @@ unsigned short aFATEntries[2][NVMEM_RM_FILEID + 1] =
 /* Extern variables ----------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
+void WLAN_Apply_Patch(void);
+void WLAN_Async_PP_Callback(long lEventType, char *data, unsigned char length);
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -180,33 +181,22 @@ int main(void)
 {
 	Set_System();
 
+#if defined (USE_SPARK_CORE_V02)
+	/* Set RGB Led Flashing color to Magenta */
+	LED_SetRGBColor(RGB_COLOR_MAGENTA);
+	LED_On(LED_RGB);
+#endif
+
 	/* Main loop */
 	while (1)
 	{
-	    if(BUTTON_GetDebouncedState(BUTTON1) != 0x00)
-	    {
-#if defined (USE_SPARK_CORE_V02)
-			/* Set RGB Led Flashing color to Magenta */
-			LED_SetRGBColor(RGB_COLOR_MAGENTA);
-#endif
+    	if(BUTTON_GetDebouncedTime(BUTTON1) >= 1000)
+    	{
+    		BUTTON_ResetDebouncedState(BUTTON1);
 
 	    	WLAN_Apply_Patch();
 	    }
 	}
-}
-
-/*******************************************************************************
-* Function Name  : Delay
-* Description    : Inserts a delay time.
-* Input          : nTime: specifies the delay time length, in milliseconds.
-* Output         : None
-* Return         : None
-*******************************************************************************/
-void Delay(uint32_t nTime)
-{
-    TimingDelay = nTime;
-
-    while(TimingDelay != 0);
 }
 
 /*******************************************************************************
@@ -272,14 +262,14 @@ int WLAN_Init_Driver(unsigned short cRequestPatch)
 	CC3000_SPI_DMA_Init();
 
 	/* WLAN On API Implementation */
-	wlan_init(WLAN_Async_Callback, WLAN_Firmware_Patch, WLAN_Driver_Patch, WLAN_BootLoader_Patch,
+	wlan_init(WLAN_Async_PP_Callback, WLAN_Firmware_Patch, WLAN_Driver_Patch, WLAN_BootLoader_Patch,
 				CC3000_Read_Interrupt_Pin, CC3000_Interrupt_Enable, CC3000_Interrupt_Disable, CC3000_Write_Enable_Pin);
 
 	Delay(1000);
 
 	/* Trigger a WLAN device */
 	wlan_start(cRequestPatch);
-	wlan_smart_config_set_prefix(aucCC3000_prefix);
+	wlan_smart_config_set_prefix(auc_prefix);
 
 	/* Mask out all non-required events from CC3000 */
 	wlan_set_event_mask(HCI_EVNT_WLAN_KEEPALIVE | HCI_EVNT_WLAN_UNSOL_INIT | HCI_EVNT_WLAN_ASYNC_PING_REPORT);
@@ -288,27 +278,9 @@ int WLAN_Init_Driver(unsigned short cRequestPatch)
 }
 
 /* WLAN Application related callbacks passed to wlan_init */
-void WLAN_Async_Callback(long lEventType, char *data, unsigned char length)
+void WLAN_Async_PP_Callback(long lEventType, char *data, unsigned char length)
 {
 	//Do Nothing
-}
-
-char *WLAN_Firmware_Patch(unsigned long *length)
-{
-	*length = 0;
-	return NULL;
-}
-
-char *WLAN_Driver_Patch(unsigned long *length)
-{
-	*length = 0;
-	return NULL;
-}
-
-char *WLAN_BootLoader_Patch(unsigned long *length)
-{
-	*length = 0;
-	return NULL;
 }
 
 //*****************************************************************************
