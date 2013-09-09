@@ -182,8 +182,6 @@ int main(void)
 {
 	Set_System();
 
-	DIO_SetState(D2, LOW);
-
 #if defined (USE_SPARK_CORE_V02)
 	/* Set RGB Led Flashing color to Magenta */
 	LED_SetRGBColor(RGB_COLOR_MAGENTA);
@@ -199,6 +197,11 @@ int main(void)
 
 	    	WLAN_Apply_Patch();
 	    }
+        
+        if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
+            CC3000_PATCH_STARTED = 0;
+            DIO_SetState(D2, HIGH); //Dx = D0 to D7 and State = HIGH or LOW
+        }
 	}
 }
 
@@ -235,9 +238,6 @@ void Timing_Decrement(void)
 #endif
     	TimingLED = 200;	//200ms
     }
-	else if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
-		DIO_SetState(D2, HIGH); //Dx = D0 to D7 and State = HIGH or LOW
-	}
 }
 
 //*****************************************************************************
