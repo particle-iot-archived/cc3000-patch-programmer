@@ -199,7 +199,7 @@ int main(void)
 	    }
         
         if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
-            CC3000_PATCH_STARTED = 0;
+            //CC3000_PATCH_STARTED = 0;
             DIO_SetState(D2, HIGH); //Dx = D0 to D7 and State = HIGH or LOW
         }
 	}
