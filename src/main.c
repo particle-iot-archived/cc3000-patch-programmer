@@ -27,6 +27,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 __IO uint8_t CC3000_PATCH_APPLIED = 1;
+__IO uint8_t CC3000_VERSION_MATCHED = 0;
 __IO uint8_t CC3000_PATCH_STARTED = 0;
 
 //Service Pack version P1.11.7.14.24 -  Driver patches
@@ -136,6 +137,9 @@ unsigned char cRMParamsFromEeprom[128];
 // array to store MAC address from EEPROM
 unsigned char cMacFromEeprom[MAC_ADDR_LEN];
 
+//array to store CC3000 service pack version
+unsigned char ccPatchVersion[2];
+
 unsigned char 	is_allocated[NVMEM_RM_FILEID + 1];
 unsigned char 	is_valid[NVMEM_RM_FILEID + 1];
 unsigned char 	write_protected[NVMEM_RM_FILEID + 1];
@@ -172,6 +176,8 @@ unsigned short aFATEntries[2][NVMEM_RM_FILEID + 1] =
 void WLAN_Apply_Patch(void);
 void WLAN_Async_PP_Callback(long lEventType, char *data, unsigned char length);
 
+unsigned char checkServicePackVersion();
+
 /* Private functions ---------------------------------------------------------*/
 
 /*******************************************************************************
@@ -203,7 +209,16 @@ int main(void)
         
         if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
             //CC3000_PATCH_STARTED = 0;
-            DIO_SetState(D2, HIGH); //Dx = D0 to D7 and State = HIGH or LOW
+            DIO_SetState(D2, HIGH);
+
+            if (CC3000_VERSION_MATCHED) {
+                //D1 high means we don't need to wait after the patch succeeded...
+                DIO_SetState(D1, HIGH);
+            }
+            else {
+                //if the versions didn't match yet, keep checking, maybe eventually they'll match?
+                checkServicePackVersion();
+            }
         }
 	}
 }
@@ -406,6 +421,15 @@ void WLAN_Apply_Patch(void)
 	// Init WLAN and request to load with no patches.
 	// this is in order to overwrite restrictions to write to specific places in EEPROM
 	WLAN_Init_Driver(1);
+    
+    //read the current service pack version of the firwmare on the cc3000
+    if (checkServicePackVersion()) {
+        //we're already done...?
+        CC3000_PATCH_APPLIED = 1;
+        CC3000_VERSION_MATCHED = 1;
+        return;
+    }
+    
 
 	// read MAC address
 	mac_status = nvmem_get_mac_address(cMacFromEeprom);
@@ -493,7 +517,20 @@ void WLAN_Apply_Patch(void)
 #elif defined (USE_SPARK_CORE_V02)
 	LED_On(LED_RGB);
 #endif
+}
 
+//http://processors.wiki.ti.com/index.php/CC3000_Release_1.10_-_Patch_Programmer#Assumptions
+//In Order to varify the patch burn successfully, one can read the EEPROM current burned service pack version by using this API:
+//nvmem_read_sp_version(unsigned char* patchVer);
+unsigned char checkServicePackVersion() {
+    //read the current service pack version of the firwmare on the cc3000
+    if (nvmem_read_sp_version(ccPatchVersion) == 0) {
+        if ((ccPatchVersion[0] == 1) && (ccPatchVersion[1] == 24)) {
+            CC3000_VERSION_MATCHED = 1;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 #ifdef USE_FULL_ASSERT
