@@ -9,6 +9,10 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "evnt_handler.h"
+#include "hci.h"
+#include "wlan.h"
+#include "nvmem.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -174,7 +178,10 @@ unsigned short aFATEntries[2][NVMEM_RM_FILEID + 1] =
 
 /* Private function prototypes -----------------------------------------------*/
 void WLAN_Apply_Patch(void);
-void WLAN_Async_PP_Callback(long lEventType, char *data, unsigned char length);
+void WLAN_Async_Callback(long lEventType, char *data, unsigned char length);
+char *WLAN_Firmware_Patch(unsigned long *length);
+char *WLAN_Driver_Patch(unsigned long *length);
+char *WLAN_BootLoader_Patch(unsigned long *length);
 
 unsigned char checkServicePackVersion();
 
@@ -286,7 +293,7 @@ int WLAN_Init_Driver(unsigned short cRequestPatch)
 	CC3000_SPI_DMA_Init();
 
 	/* WLAN On API Implementation */
-	wlan_init(WLAN_Async_PP_Callback, WLAN_Firmware_Patch, WLAN_Driver_Patch, WLAN_BootLoader_Patch,
+	wlan_init(WLAN_Async_Callback, WLAN_Firmware_Patch, WLAN_Driver_Patch, WLAN_BootLoader_Patch,
 				CC3000_Read_Interrupt_Pin, CC3000_Interrupt_Enable, CC3000_Interrupt_Disable, CC3000_Write_Enable_Pin);
 
 	Delay(1000);
@@ -299,12 +306,6 @@ int WLAN_Init_Driver(unsigned short cRequestPatch)
 	wlan_set_event_mask(HCI_EVNT_WLAN_KEEPALIVE | HCI_EVNT_WLAN_UNSOL_INIT | HCI_EVNT_WLAN_ASYNC_PING_REPORT);
 
 	return (0);
-}
-
-/* WLAN Application related callbacks passed to wlan_init */
-void WLAN_Async_PP_Callback(long lEventType, char *data, unsigned char length)
-{
-	//Do Nothing
 }
 
 //*****************************************************************************
@@ -517,6 +518,30 @@ void WLAN_Apply_Patch(void)
 #elif defined (USE_SPARK_CORE_V02)
 	LED_On(LED_RGB);
 #endif
+}
+
+/* WLAN Application related callbacks passed to wlan_init */
+void WLAN_Async_Callback(long lEventType, char *data, unsigned char length)
+{
+	//Do Nothing
+}
+
+char *WLAN_Firmware_Patch(unsigned long *length)
+{
+	*length = 0;
+	return NULL;
+}
+
+char *WLAN_Driver_Patch(unsigned long *length)
+{
+	*length = 0;
+	return NULL;
+}
+
+char *WLAN_BootLoader_Patch(unsigned long *length)
+{
+	*length = 0;
+	return NULL;
 }
 
 //http://processors.wiki.ti.com/index.php/CC3000_Release_1.10_-_Patch_Programmer#Assumptions
