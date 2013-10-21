@@ -182,6 +182,7 @@ void WLAN_Async_Callback(long lEventType, char *data, unsigned char length);
 char *WLAN_Firmware_Patch(unsigned long *length);
 char *WLAN_Driver_Patch(unsigned long *length);
 char *WLAN_BootLoader_Patch(unsigned long *length);
+int WLAN_Init_Driver(unsigned short cRequestPatch);
 
 unsigned char checkServicePackVersion();
 
@@ -204,6 +205,9 @@ int main(void)
 	LED_On(LED_RGB);
 #endif
 
+    // Init WLAN and request to load with patches.
+    WLAN_Init_Driver(0);
+
 	/* Main loop */
 	while (1)
 	{
@@ -217,7 +221,11 @@ int main(void)
         if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
             //CC3000_PATCH_STARTED = 0;
             DIO_SetState(D2, HIGH);
+        }
+        
 
+        //keep checking the version to see if it matches eventually?
+        if (!CC3000_PATCH_STARTED || CC3000_PATCH_APPLIED) {
             if (CC3000_VERSION_MATCHED) {
                 //D1 high means we don't need to wait after the patch succeeded...
                 DIO_SetState(D1, HIGH);
@@ -225,8 +233,10 @@ int main(void)
             else {
                 //if the versions didn't match yet, keep checking, maybe eventually they'll match?
                 checkServicePackVersion();
+                Delay(1000);
             }
         }
+
 	}
 }
 
