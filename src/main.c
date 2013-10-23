@@ -199,6 +199,8 @@ int main(void)
 {
 	Set_System();
 
+	SysTick_Configuration();
+
 #if defined (USE_SPARK_CORE_V02)
 	/* Set RGB Led Flashing color to Magenta */
 	LED_SetRGBColor(RGB_COLOR_MAGENTA);
