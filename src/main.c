@@ -216,6 +216,7 @@ int main(void)
     	if(BUTTON_GetDebouncedTime(BUTTON1) >= 1000)
     	{
     		BUTTON_ResetDebouncedState(BUTTON1);
+			DIO_SetState(D0, HIGH);		//D0 - we started the flash
 
 	    	WLAN_Apply_Patch();
 	    }
