@@ -210,9 +210,13 @@ int main(void)
     // Init WLAN and request to load with patches.
     WLAN_Init_Driver(0);
 
+	DIO_SetState(D0, HIGH);		//D0 - we started the flash
+	WLAN_Apply_Patch();
+	
 	/* Main loop */
 	while (1)
 	{
+	/*
     	if(BUTTON_GetDebouncedTime(BUTTON1) >= 1000)
     	{
     		BUTTON_ResetDebouncedState(BUTTON1);
@@ -220,6 +224,7 @@ int main(void)
 
 	    	WLAN_Apply_Patch();
 	    }
+		*/
         
         if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
             //CC3000_PATCH_STARTED = 0;
