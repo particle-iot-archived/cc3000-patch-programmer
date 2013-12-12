@@ -1,32 +1,165 @@
-CC3000 Patch Programmer
-=======================
+# Spark Core - CC3000 Patch Programmer
 
-TI CC3000 Patch Programmer ported to STM32
+This is the main source code repository of the Spark Core's TI CC3000 Patch Programmer ported to STM32
 
-Development Environment Setup:
+This firmware depends on the [Spark Common Library](http://www.github.com/spark/core-common-lib)
 
-1. Copy .cproject and .project files from "core-firmware" into "cc3000-patch-programmer" folder.
+1. [Download and Install Dependencies](#1-download-and-install-dependencies)
+2. [Download and Build Repositories](#2-download-and-build-repositories)
+3. [Edit and Rebuild](#3-edit-and-rebuild)
+4. [Flash It!](#4-flash-it)
+ 
+## 1. Download and Install Dependencies 
 
-2. Search and replace "core-firmware" with "cc3000-patch-programmer" in the above 2 files.
+1. [GCC for ARM Cortex processors](#1-gcc-for-arm-cortex-processors)
+2. [Make](#2-make)
+3. [Device Firmware Upgrade Utilities](#3-device-firmware-upgrade-utilities)
+4. [Zadig](#4-zadig) (for windows users only)
+5. [Git](#5-git)
 
-3. In Eclipse, select File -> Import -> Existing Projects into Workspace -> Select root directry: -> Browse and select "cc3000-patch-programmer" folder -> Finish.
 
-4. In platform_config.h, uncomment the define corresponding to the platform/board used.
+#### 1. GCC for ARM Cortex processors
+The Spark Core uses an ARM Cortex M3 CPU based microcontroller. All of the code is built around the GNU GCC toolchain offered and maintained by ARM.  
 
-5. In Project Properties -> C/C++ General -> Paths and Symbols -> Includes -> GNU C -> Delete "/cc3000-patch-programmer/libraries/CC3000_Host_Driver"
+Download and install the latest version from: https://launchpad.net/gcc-arm-embedded
 
-6. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Compiler -> Preprocessor -> Defined symbols(-D), add "STM32F10X_MD" when building for medium density flash chips.
+See [this Gist](https://gist.github.com/joegoggins/7763637) for how to get setup on OS X.
 
-7. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Compiler -> Optimization, select Optimization level as "Optimize size(-Os)"
+#### 2. Make 
+In order to turn your source code into binaries, you will need a tool called `make`. Windows users need to explicitly install `make` on their machines. Make sure you can use it from the terminal window.
 
-8. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Compiler -> Optimization, "CHECK" the "Function sections" and "UNCHECK" the "Data sections".
+Download and install the latest version from: http://gnuwin32.sourceforge.net/packages/make.htm
 
-9. In Project Properties -> C/C++ Build -> Settings -> Tool Settings -> ARM Sourcery Windows GCC C Linker -> General -> Script file (-T), Browse & select linker file : "linker_stm32f10x_md.ld" for non-dfu based build used for programming the chip using JTAG.
+#### 3. Device Firmware Upgrade Utilities
+Install dfu-util. Mac users can install dfu-util with [Homebrew](http://brew.sh/), Linux users may find it in their package manager, and everyone can get it from http://dfu-util.gnumonks.org/index.html
 
-10. Program the chips using 9 above, Press the BUTTON to start the patching process.
+#### 4. Zadig
+In order for the Core to show up on the dfu list, you need to replace the USB driver with a utility called [Zadig](http://zadig.akeo.ie/). Here is a [tutorial](https://github.com/pbatard/libwdi/wiki/Zadig) on using it. This is only required for Windows users.
 
-11. The LEDs should blink every 200ms to indicate the patching is in progress. When successfully completed, the LEDs should stay ON.
+#### 5. Git
 
-12. Check the "patchVer" variable in the core-firmware project. The value should be "\001\023" i.e. 1.19
+Download and install Git: http://git-scm.com/
 
-13. Alternatively to build the project using command line option, cd to the "build" folder and run "make clean" followed by "make all".
+## 2. Download and Build Repositories
+
+The Spark Core - CC3000 Patch Programmer is organized into two repositories. The main patch firmware is located under *cc3000-patch-programmer*, while the supporting library is under *core-common-lib*.
+
+#### How do we *download* these repositories?
+You can access all of the repositories via any git interface or download it directly from the website.
+
+Make sure all of the following repositories are downloaded into the same folder. *For example (if all of the repositories are downloaded in a folder called Spark):*
+
+```
+D:\Spark\cc3000-patch-programmer
+D:\Spark\core-common-lib
+
+```
+
+*Method 1: Through the git command line interface.*  
+
+Open up a terminal window, navigate to your destination directory and type the following commands:
+
+(Make sure you have git installed on your machine!)
+
+* `git clone https://github.com/spark/cc3000-patch-programmer.git`  
+* `git clone https://github.com/spark/core-common-lib.git`
+* `cd cc3000-patch-programmer`
+* `git checkout dfu-user`
+
+*Method 2: Download the zipped files directly from the Spark's GitHub website*
+
+* [cc3000-patch-programmer](https://github.com/spark/cc3000-patch-programmer/archive/dfu-user.zip)
+* [core-common-lib](https://github.com/spark/core-common-lib/archive/master.zip)
+
+#### How do we *build* these repositories?
+
+Make sure you have downloaded and installed all the required dependencies as mentioned [previously.](#1-download-and-install-dependencies). Note, if you've downloaded or cloned these previously, you'll want to `git pull` or redownload all of them before proceeding.
+
+Open up a terminal window, navigate to the build folder under cc3000-patch-programmer
+(i.e. `cd cc3000-patch-programmer/build`) and type:
+
+    make all
+
+This will build the cc3000-patch-programmer project and required dependencies.
+
+*For example:* `D:\Spark\cc3000-patch-programmer\build [dfu-user]> make`
+
+##### Common Errors
+
+* `arm-none-eabi-gcc` and other required gcc/arm binaries not in the PATH.
+  Solution: Add the /bin folder to your $PATH (i.e. `export PATH="$PATH:<SOME_GCC_ARM_DIR>/bin`).
+  Google "Add binary to PATH" for more details.
+
+* You get `make: *** No targets specified and no makefile found.  Stop.`.
+  Solution: `cd cc3000-patch-programmer/build`.
+
+Please issue a pull request if you come across similar issues/fixes that trip you up.
+
+### Navigating the code base
+
+All of the repositories are sub divided into functional folders:
+
+1. `/src` holds all the source code files
+2. `/inc` holds all the header files
+3. `/build` holds the makefile and is also the destination for the compiled `.bin` and `.hex` files.
+
+## 3. Flash It!
+
+*Make sure you have the `dfu-util` command installed and available through the command line*
+
+#### Steps:
+1. Put you Core into the DFU mode by holding down the MODE button on the Core and then tapping on the RESET button once. Release the MODE button after you start to see the RGB LED flashing in yellow. It's easy to get this one wrong: Make sure you don't let go of the left button until you see flashing yellow, about 3 seconds after you release the right/RESET button. A flash of white then flashing green can happen when you get this wrong. You want flashing yellow.
+
+2. Open up a terminal window on your computer and type this command to find out if the Core indeed being detected correctly. 
+
+   `dfu-util -l`   
+   you should get the following in return:
+   ```
+   Found DFU: [1d50:607f] devnum=0, cfg=1, intf=0, alt=0, name="@Internal Flash  /0x08000000/20*001Ka,108*001Kg" 
+   Found DFU: [1d50:607f] devnum=0, cfg=1, intf=0, alt=1, name="@SPI Flash : SST25x/0x00000000/512*04Kg"
+   ```
+
+   (Windows users will need to use the Zadig utility to replace the USB driver as described earlier)
+
+3. Now, navigate to the build folder in your cc3000-patch-programmer repository and use the following command to transfer the *.bin* file into the Core.
+   ```
+   dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
+   ```
+
+   For example, this is how my terminal looks like:
+   ```
+D:\Spark\cc3000-patch-programmer\build [dfu-user]> dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
+   ```
+Upon successful transfer, the Core will automatically reset and start the running the cc3000 patch program.
+
+Press the MODE button(> 1sec) to start the patching process.
+A Magenta color LED should blink every 200ms to indicate the patching is in progress.
+When successfully completed, the Magenta LED should stop blinking and stay ON.
+
+Note: As of 12/4/13, you will likely see `Error during download get_status` as the last line from 
+the `dfu-util` command. You can ignore this message for now.  We're not sure what this error is all about.
+
+**Still having troubles?** Checkout our [resources page](https://www.spark.io/resources), hit us up on IRC, etc.
+
+### CREDITS AND ATTRIBUTIONS
+
+The Spark application team: Zachary Crockett, Satish Nair, Zach Supalla, David Middlecamp and Mohit Bhoite.
+
+The cc3000-patch-programmer uses the GNU GCC toolchain for ARM Cortex-M processors, ARM's CMSIS libraries, TI's CC3000 host driver libraries and STM32 standard peripheral libraries.
+
+### LICENSE
+
+Unless stated elsewhere, file headers or otherwise, all files herein are licensed under an LGPLv3 license. For more information, please read the LICENSE file.
+
+### CONTRIBUTE
+
+Want to contribute to the Spark Core project? Follow [this link]() to find out how.
+
+### CONNECT
+
+Having problems or have awesome suggestions? Connect with us [here.](https://community.sparkdevices.com/)
+
+### VERSION HISTORY
+
+Latest Version: v1.0.0
+
