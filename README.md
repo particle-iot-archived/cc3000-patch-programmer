@@ -13,7 +13,9 @@ If you simply want to run this Patch Programmer on your Spark Core and then retu
 3. Put your Core in "bootloader mode" by holding the MODE button for 3 seconds while the Core is powering up (either by holding the MODE button and tapping the RESET pin or by holding the MODE button while connecting power to the Core). For more detailed instructions, see [below](#4-flash-it).
 4. Enter the `build` directory in your terminal and run the following command:
 
-    dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
+```
+dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
+```
 
 5. When the Patch Programmer is installed, the LED should turn off. Press the MODE button for one second to install the Patch; the LED should start flashing magenta.
 6. When the patch has been successfully installed, the LED will switch to solid magenta.
