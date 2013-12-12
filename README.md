@@ -2,7 +2,24 @@
 
 This is the main source code repository of the Spark Core's TI CC3000 Patch Programmer ported to STM32
 
-This firmware depends on the [Spark Common Library](http://www.github.com/spark/core-common-lib)
+This firmware depends on the [Spark Common Library](http://www.github.com/spark/core-common-lib).
+
+## Quick Deploy
+
+If you simply want to run this Patch Programmer on your Spark Core and then return to the standard Spark Core firmware, follow these instructions.
+
+1. Download this repository
+2. Install `dfu-util`. On a Mac with Homebrew, try `brew dfu-util`. Otherwise, see [below](#3-device-firmware-upgrade-utilities).
+3. Put your Core in "bootloader mode" by holding the MODE button for 3 seconds while the Core is powering up (either by holding the MODE button and tapping the RESET pin or by holding the MODE button while connecting power to the Core). For more detailed instructions, see [below](#4-flash-it).
+4. Enter the `build` directory in your terminal and run the following command:
+
+    dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
+
+5. When the Patch Programmer is installed, the LED should turn off. Press the MODE button for one second to install the Patch; the LED should start flashing magenta.
+6. When the patch has been successfully installed, the LED will switch to solid magenta.
+7. To reboot back into the Spark Core standard firmware, hold the MODE button for 10 seconds while the Core is powering up (as above, to get into bootloader mode). This will activate a factory reset; if it is successful, the LED will flash white, and then the Core will return to its previous state (but with new firmware on the CC3000).
+
+## Table of Contents
 
 1. [Download and Install Dependencies](#1-download-and-install-dependencies)
 2. [Download and Build Repositories](#2-download-and-build-repositories)
