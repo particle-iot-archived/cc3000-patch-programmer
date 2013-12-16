@@ -9,7 +9,7 @@ This firmware depends on the [Spark Common Library](http://www.github.com/spark/
 If you simply want to run this Patch Programmer on your Spark Core and then return to the standard Spark Core firmware, follow these instructions.
 
 1. Download this repository
-2. Install `dfu-util`. On a Mac with Homebrew, try `brew dfu-util`. Otherwise, see [below](#3-device-firmware-upgrade-utilities).
+2. Install `dfu-util`. On a Mac with Homebrew, try `brew install dfu-util`. Otherwise, see [below](#3-device-firmware-upgrade-utilities).
 3. Put your Core in "bootloader mode" by holding the MODE button for 3 seconds while the Core is powering up (either by holding the MODE button and tapping the RESET pin or by holding the MODE button while connecting power to the Core). For more detailed instructions, see [below](#4-flash-it).
 4. Enter the `build` directory in your terminal and run the following command:
 
