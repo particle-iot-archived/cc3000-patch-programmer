@@ -155,6 +155,8 @@ Press the MODE button(> 1sec) to start the patching process.
 A Magenta color LED should blink every 200ms to indicate the patching is in progress.
 When successfully completed, the Magenta LED should stop blinking and stay ON.
 
+To reboot back into the Spark Core standard firmware, hold the MODE button for 10 seconds while the Core is powering up (as above, to get into bootloader mode). This will activate a factory reset; if it is successful, the LED will flash white, and then the Core will return to its previous state (but with new firmware on the CC3000).
+
 Note: As of 12/4/13, you will likely see `Error during download get_status` as the last line from 
 the `dfu-util` command. You can ignore this message for now.  We're not sure what this error is all about.
 
