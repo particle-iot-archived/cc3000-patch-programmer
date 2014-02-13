@@ -223,11 +223,9 @@ int main(void)
 
 	SysTick_Configuration();
 
-#if defined (USE_SPARK_CORE_V02)
 	/* Set RGB Led Flashing color to Magenta */
 	LED_SetRGBColor(RGB_COLOR_MAGENTA);
 	LED_On(LED_RGB);
-#endif
 
     // Init WLAN and request to load with patches.
     WLAN_Init_Driver(0);
@@ -295,12 +293,7 @@ void Timing_Decrement(void)
     }
     else if(!CC3000_PATCH_APPLIED)
     {
-#if defined (USE_SPARK_CORE_V01)
-    	LED_Toggle(LED1);
-    	LED_Toggle(LED2);
-#elif defined (USE_SPARK_CORE_V02)
     	LED_Toggle(LED_RGB);
-#endif
     	TimingLED = 200;	//200ms
     }
 }
@@ -319,12 +312,7 @@ void Timing_Decrement(void)
 //*****************************************************************************
 int WLAN_Init_Driver(unsigned short cRequestPatch)
 {
-#if defined (USE_SPARK_CORE_V01)
-	LED_Off(LED1);
-	LED_Off(LED2);
-#elif defined (USE_SPARK_CORE_V02)
 	LED_Off(LED_RGB);
-#endif
 
 	/* Initialize CC3000's CS, EN and INT pins to their default states */
 	CC3000_WIFI_Init();
@@ -552,12 +540,7 @@ void WLAN_Apply_Patch(void)
 
 	Delay(100);
 
-#if defined (USE_SPARK_CORE_V01)
-	LED_On(LED1);
-	LED_On(LED2);
-#elif defined (USE_SPARK_CORE_V02)
 	LED_On(LED_RGB);
-#endif
 }
 
 /* WLAN Application related callbacks passed to wlan_init */
