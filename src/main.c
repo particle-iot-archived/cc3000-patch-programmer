@@ -296,6 +296,24 @@ void Timing_Decrement(void)
     	LED_Toggle(LED_RGB);
     	TimingLED = 200;	//200ms
     }
+
+	if (TimingIWDGReload >= TIMING_IWDG_RELOAD)
+	{
+		TimingIWDGReload = 0;
+
+		/* Reload IWDG counter */
+		IWDG_ReloadCounter();
+
+		if (BKP_ReadBackupRegister(BKP_DR9) != 0xFFFF)
+		{
+			//We have a running firmware otherwise we wouldn't have been here
+			BKP_WriteBackupRegister(BKP_DR9, 0xFFFF);	//Reset BKP_DR9
+		}
+	}
+	else
+	{
+		TimingIWDGReload++;
+	}
 }
 
 //*****************************************************************************
