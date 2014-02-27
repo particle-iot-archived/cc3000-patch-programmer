@@ -304,10 +304,10 @@ void Timing_Decrement(void)
 		/* Reload IWDG counter */
 		IWDG_ReloadCounter();
 
-		if (BKP_ReadBackupRegister(BKP_DR9) != 0xFFFF)
+		if (BKP_ReadBackupRegister(BKP_DR1) != 0xFFFF)
 		{
 			//We have a running firmware otherwise we wouldn't have been here
-			BKP_WriteBackupRegister(BKP_DR9, 0xFFFF);	//Reset BKP_DR9
+			BKP_WriteBackupRegister(BKP_DR1, 0xFFFF);	//Reset BKP_DR1
 		}
 	}
 	else
