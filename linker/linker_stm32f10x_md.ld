@@ -23,7 +23,7 @@
 These are used by the startup in order to allocate stacks for the different modes.
 */
 
-__Stack_Size = 1024 ;
+__Stack_Size = 2048 ;
 
 PROVIDE ( _Stack_Size = __Stack_Size ) ;
 
@@ -35,7 +35,7 @@ PROVIDE ( _Stack_Init = __Stack_Init ) ;
 /*
 There will be a link error if there is not this amount of RAM free at the end.
 */
-_Minimum_Stack_Size = 0x100 ;
+_Minimum_Stack_Size = 0x200 ;
 
 /* include the memory spaces definitions sub-script */
 /*
@@ -91,11 +91,39 @@ SECTIONS
         *(.glue_7t)
 
 	    . = ALIGN(4);
-   	 _etext = .;
-	    /* This is used by the startup in order to initialize the .data secion */
-   	 _sidata = _etext;
+   	  _etext = .;
+    } >FLASH
+ 
+    .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+    .ARM : {
+        __exidx_start = .;
+        *(.ARM.exidx*)
+        __exidx_end = .;
+    } >FLASH
+ 
+    .preinit_array : {
+        PROVIDE_HIDDEN (__preinit_array_start = .);
+        KEEP (*(.preinit_array*))
+        PROVIDE_HIDDEN (__preinit_array_end = .);
     } >FLASH
 
+    .init_array : {
+        PROVIDE_HIDDEN (__init_array_start = .);
+        KEEP (*(SORT(.init_array.*)))
+        KEEP (*(.init_array*))
+        PROVIDE_HIDDEN (__init_array_end = .);
+    } >FLASH
+
+    .fini_array : {
+        PROVIDE_HIDDEN (__fini_array_start = .);
+        KEEP (*(.fini_array*))
+        KEEP (*(SORT(.fini_array.*)))
+        PROVIDE_HIDDEN (__fini_array_end = .);
+    } >FLASH
+
+    /* This is used by the startup to initialize .data  section */
+    _sidata = .;
+ 
     /* This is the initialized data section
     The program executes knowing that the data is in the RAM
     but the loader puts the initial values in the FLASH (inidata).

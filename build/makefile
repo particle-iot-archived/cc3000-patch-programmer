@@ -1,87 +1,185 @@
 
--include ../makefile.init
+# Define the compiler/tools prefix
+GCC_PREFIX = arm-none-eabi-
 
-RM := rm -rf
+# Define tools
+CC = $(GCC_PREFIX)gcc
+CPP = $(GCC_PREFIX)g++
+AR = $(GCC_PREFIX)ar
+OBJCOPY = $(GCC_PREFIX)objcopy
+SIZE = $(GCC_PREFIX)size
+DFU = dfu-util
 
-# All of the sources participating in the build are defined here
--include sources.mk
--include startup/subdir.mk
--include src/subdir.mk
--include subdir.mk
--include objects.mk
+RM = rm -f
+MKDIR = mkdir -p
 
-ifneq ($(MAKECMDGOALS),clean)
-ifneq ($(strip $(C_DEPS)),)
--include $(C_DEPS)
+# Recursive wildcard function
+rwildcard = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+
+# Define the build path, this is where all of the dependancies and
+# object files will be placed.
+# Note: Currently set to <project>/build/obj directory and set relative to
+# the dir which makefile is invoked. If the makefile is moved to the project
+# root, BUILD_PATH = build can be used to store the build products in 
+# the build directory.
+BUILD_PATH = obj
+
+# Path to the root of source files, in this case root of the project to
+# inclue ../src and ../lib dirs.
+# Note: Consider relocating source files in lib to src, or build a
+#       seperate library.
+SRC_PATH = ..
+
+# Target this makefile is building.
+TARGET = cc3000-patch-programmer
+
+# Find all build.mk makefiles in each source directory in the src tree.
+SRC_MAKEFILES := $(call rwildcard,$(SRC_PATH)/,build.mk)
+
+# Include all build.mk defines source files.
+include $(SRC_MAKEFILES)
+
+# Paths to dependant projects, referenced from root of this project
+LIB_CORE_COMMON_PATH = ../core-common-lib
+
+# Additional include directories, applied to objects built for this target.
+INCLUDE_DIRS += $(LIB_CORE_COMMON_PATH)/CMSIS/Include
+INCLUDE_DIRS += $(LIB_CORE_COMMON_PATH)/CMSIS/Device/ST/STM32F10x/Include
+INCLUDE_DIRS += $(LIB_CORE_COMMON_PATH)/STM32F10x_StdPeriph_Driver/inc
+INCLUDE_DIRS += $(LIB_CORE_COMMON_PATH)/STM32_USB-FS-Device_Driver/inc
+INCLUDE_DIRS += $(LIB_CORE_COMMON_PATH)/CC3000_Host_Driver
+INCLUDE_DIRS += $(LIB_CORE_COMMON_PATH)/SPARK_Firmware_Driver/inc
+
+# Compiler flags
+CFLAGS =  -g3 -gdwarf-2 -Os -mcpu=cortex-m3 -mthumb 
+CFLAGS += $(patsubst %,-I$(SRC_PATH)/%,$(INCLUDE_DIRS)) -I.
+CFLAGS += -ffunction-sections -Wall -fmessage-length=0
+
+# Generate dependancy files automatically.
+CFLAGS += -MD -MP -MF $@.d
+
+# Target specific defines
+CFLAGS += -DUSE_STDPERIPH_DRIVER
+CFLAGS += -DSTM32F10X_MD
+CFLAGS += -DDFU_BUILD_ENABLE
+
+ifeq ("$(USE_SWD_JTAG)","y") 
+CFLAGS += -DUSE_SWD_JTAG
 endif
-ifneq ($(strip $(ASM_DEPS)),)
--include $(ASM_DEPS)
+
+ifeq ("$(DEBUG_BUILD)","y") 
+CFLAGS += -DDEBUG_BUILD
+else
+CFLAGS += -DRELEASE_BUILD
 endif
-ifneq ($(strip $(S_UPPER_DEPS)),)
--include $(S_UPPER_DEPS)
-endif
-endif
 
--include ../makefile.defs
+# C++ specific flags
+CPPFLAGS = -fno-exceptions -fno-rtti 
 
-# Add inputs and outputs from these tool invocations to the build variables 
-SECONDARY_FLASH += \
-cc3000-patch-programmer.hex \
+# Linker flags
+LDFLAGS += -T../linker/linker_stm32f10x_md_dfu.ld -nostartfiles -Xlinker --gc-sections 
+LDFLAGS += -L$(SRC_PATH)/$(LIB_CORE_COMMON_PATH)/build -lcore-common-lib
+LDFLAGS += -Wl,-Map,$(TARGET).map
 
-SECONDARY_LIST += \
-cc3000-patch-programmer.lst \
+# Assember flags
+ASFLAGS =  -g3 -gdwarf-2 -mcpu=cortex-m3 -mthumb 
+ASFLAGS += -x assembler-with-cpp -fmessage-length=0
 
-SECONDARY_SIZE += \
-cc3000-patch-programmer.siz \
+# Collect all object and dep files
+ALLOBJ += $(addprefix $(BUILD_PATH)/, $(CSRC:.c=.o))
+ALLOBJ += $(addprefix $(BUILD_PATH)/, $(CPPSRC:.cpp=.o))
+ALLOBJ += $(addprefix $(BUILD_PATH)/, $(ASRC:.S=.o))
 
+ALLDEPS += $(addprefix $(BUILD_PATH)/, $(CSRC:.c=.o.d))
+ALLDEPS += $(addprefix $(BUILD_PATH)/, $(CPPSRC:.cpp=.o.d))
+ALLDEPS += $(addprefix $(BUILD_PATH)/, $(ASRC:.S=.o.d))
 
 # All Target
-all: cc3000-patch-programmer.elf secondary-outputs
+all: elf bin hex size
 
-dependents:
-	-cd ../../core-common-lib/build && $(MAKE) all
+elf: $(TARGET).elf
+bin: $(TARGET).bin
+hex: $(TARGET).hex
+
+# Program the core using dfu-util. The core should have been placed
+# in bootloader mode before invoking 'make program-dfu'
+program-dfu: $(TARGET).bin
+	@echo Flashing using dfu:
+	$(DFU) -d 1d50:607f -a 0 -s 0x08005000:leave -D $<
+
+# Display size
+size: $(TARGET).elf
+	@echo Invoking: ARM GNU Print Size
+	$(SIZE) --format=berkeley $<
+	@echo
+
+# Create a hex file from ELF file
+%.hex : %.elf
+	@echo Invoking: ARM GNU Create Flash Image
+	$(OBJCOPY) -O ihex $< $@
+	@echo
+
+# Create a bin file from ELF file
+%.bin : %.elf
+	@echo Invoking: ARM GNU Create Flash Image
+	$(OBJCOPY) -O binary $< $@
+	@echo
+
+$(TARGET).elf : check_external_deps $(ALLOBJ)
+	@echo Building target: $@
+	@echo Invoking: ARM GCC C++ Linker
+	$(CPP) $(CFLAGS) $(ALLOBJ) --output $@ $(LDFLAGS)
+	@echo
+
+# Check for external dependancies are up to date
+# Note: Since this makefile has no knowledge of depenancies for
+#       the external libs, make must be called on the libs for
+#       every build. Targets which depend directly on this recipie
+#       will then always be rebuilt, ie. $(TARGET).elf
+check_external_deps:
+	@echo Building core-common-lib
+	@$(MAKE) -C $(SRC_PATH)/$(LIB_CORE_COMMON_PATH)/build --no-print-directory
+	@echo
 
 # Tool invocations
-cc3000-patch-programmer.elf: $(OBJS) $(USER_OBJS) ../../core-common-lib/build/libcore-common-lib.a
-	@echo 'Building target: $@'
-	@echo 'Invoking: ARM Sourcery Windows GCC C Linker'
-	arm-none-eabi-gcc -T"../linker/linker_stm32f10x_md_dfu.ld" -nostartfiles -Xlinker --gc-sections -L"../../core-common-lib/build" -Wl,-Map,cc3000-patch-programmer.map -mcpu=cortex-m3 -mthumb -g3 -gdwarf-2 -o "cc3000-patch-programmer.elf" $(OBJS) $(USER_OBJS) $(LIBS)
-	@echo 'Finished building target: $@'
-	@echo ' '
-	$(MAKE) --no-print-directory post-build
 
-cc3000-patch-programmer.hex: cc3000-patch-programmer.elf
-	@echo 'Invoking: ARM Sourcery Windows GNU Create Flash Image'
-	arm-none-eabi-objcopy -O ihex cc3000-patch-programmer.elf  "cc3000-patch-programmer.hex"
-	@echo 'Finished building: $@'
-	@echo ' '
+# C compiler to build .o from .c in $(BUILD_DIR)
+$(BUILD_PATH)/%.o : $(SRC_PATH)/%.c
+	@echo Building file: $<
+	@echo Invoking: ARM GCC C Compiler
+	$(MKDIR) $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+	@echo
 
-cc3000-patch-programmer.lst: cc3000-patch-programmer.elf
-	@echo 'Invoking: ARM Sourcery Windows GNU Create Listing'
-	arm-none-eabi-objdump -h -S cc3000-patch-programmer.elf > "cc3000-patch-programmer.lst"
-	@echo 'Finished building: $@'
-	@echo ' '
+# Assember to build .o from .S in $(BUILD_DIR)
+$(BUILD_PATH)/%.o : $(SRC_PATH)/%.S
+	@echo Building file: $<
+	@echo Invoking: ARM GCC Assember
+	$(MKDIR) $(dir $@)
+	$(CC) $(ASFLAGS) -c -o $@ $<
+	@echo
 
-cc3000-patch-programmer.siz: cc3000-patch-programmer.elf
-	@echo 'Invoking: ARM Sourcery Windows GNU Print Size'
-	arm-none-eabi-size  --format=berkeley cc3000-patch-programmer.elf
-	@echo 'Finished building: $@'
-	@echo ' '
+# CPP compiler to build .o from .cpp in $(BUILD_DIR)
+# Note: Calls standard $(CC) - gcc will invoke g++ as appropriate
+$(BUILD_PATH)/%.o : $(SRC_PATH)/%.cpp
+	@echo Building file: $<
+	@echo Invoking: ARM GCC CPP Compiler
+	$(MKDIR) $(dir $@)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+	@echo
 
 # Other Targets
 clean:
-	-$(RM) $(SECONDARY_SIZE)$(OBJS)$(C_DEPS)$(ASM_DEPS)$(SECONDARY_FLASH)$(EXECUTABLES)$(SECONDARY_LIST)$(S_UPPER_DEPS) cc3000-patch-programmer.elf cc3000-patch-programmer.map cc3000-patch-programmer.bin
-	-@echo ' '
+	$(RM) $(ALLOBJ) $(ALLDEPS) $(TARGET).elf $(TARGET).bin $(TARGET).hex $(TARGET).map
+	@echo
+	@echo Clean core-common-lib
+# Should clean invoke clean on the dependant libs as well? Sure..
+	@$(MAKE) -C $(SRC_PATH)/$(LIB_CORE_COMMON_PATH)/build clean --no-print-directory
+	@echo
 
-post-build:
-	-@echo 'Create Binary'
-	-arm-none-eabi-objcopy -S -O binary "cc3000-patch-programmer.elf" "cc3000-patch-programmer.bin"
-	-@echo ' '
+.PHONY: all clean check_external_deps elf bin hex size program-dfu program-cloud
+.SECONDARY:
 
-secondary-outputs: $(SECONDARY_FLASH) $(SECONDARY_LIST) $(SECONDARY_SIZE)
+# Include auto generated dependancy files
+-include $(ALLDEPS)
 
-.PHONY: all clean dependents
-.SECONDARY: post-build
-../../core-common-lib/build/libcore-common-lib.a:
-
--include ../makefile.targets

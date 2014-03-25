@@ -25,6 +25,10 @@
   ******************************************************************************
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Includes ------------------------------------------------------------------*/
 #include "stm32_it.h"
 #include "main.h"
@@ -163,6 +167,7 @@ void PendSV_Handler(void)
  *******************************************************************************/
 void SysTick_Handler(void)
 {
+	System1MsTick();
 	Timing_Decrement();
 }
 
@@ -266,3 +271,7 @@ void TIM1_CC_IRQHandler(void)
  void PPP_IRQHandler(void) {
  }
  */
+
+#ifdef __cplusplus
+}
+#endif
