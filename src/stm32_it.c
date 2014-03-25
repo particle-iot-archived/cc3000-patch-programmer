@@ -1,13 +1,28 @@
 /**
  ******************************************************************************
  * @file    stm32_it.c
- * @author  Spark Application Team
+ * @author  Satish Nair
  * @version V1.0.0
- * @date    03-June-2013
+ * @date    13-March-2013
  * @brief   Main Interrupt Service Routines.
  *          This file provides template for all exceptions handler and peripherals
  *          interrupt service routine.
  ******************************************************************************
+  Copyright (c) 2013 Spark Labs, Inc.  All rights reserved.
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation, either
+  version 3 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, see <http://www.gnu.org/licenses/>.
+  ******************************************************************************
  */
 
 /* Includes ------------------------------------------------------------------*/
@@ -179,7 +194,6 @@ void DMA1_Channel5_IRQHandler(void)
  *******************************************************************************/
 void EXTI2_IRQHandler(void)
 {
-#if defined (USE_SPARK_CORE_V02)
 	if (EXTI_GetITStatus(BUTTON1_EXTI_LINE ) != RESET)
 	{
 		/* Clear the EXTI line pending bit */
@@ -193,7 +207,6 @@ void EXTI2_IRQHandler(void)
 		/* Enable TIM1 CC4 Interrupt */
 		TIM_ITConfig(TIM1, TIM_IT_CC4, ENABLE);
 	}
-#endif
 }
 
 /*******************************************************************************
@@ -212,22 +225,6 @@ void EXTI15_10_IRQHandler(void)
 
 		SPI_EXTI_IntHandler();
 	}
-
-#if defined (USE_SPARK_CORE_V01)
-	if (EXTI_GetITStatus(BUTTON1_EXTI_LINE ) != RESET)
-	{
-		/* Clear the EXTI line pending bit */
-		EXTI_ClearITPendingBit(BUTTON1_EXTI_LINE );
-
-		BUTTON_DEBOUNCED_TIME[BUTTON1] = 0x00;
-
-		/* Disable BUTTON1 Interrupt */
-		BUTTON_EXTI_Config(BUTTON1, DISABLE);
-
-		/* Enable TIM1 CC4 Interrupt */
-		TIM_ITConfig(TIM1, TIM_IT_CC4, ENABLE);
-	}
-#endif
 }
 
 /*******************************************************************************

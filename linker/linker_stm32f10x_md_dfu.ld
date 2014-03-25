@@ -1,7 +1,7 @@
 /*
 *****************************************************************************
 **
-**  File        : linker_stm32f10x_md.ld
+**  File        : linker_stm32f10x_md_dfu.ld
 **
 **  Abstract    : Linker script for STM32F103CB Device with
 **                128KByte FLASH, 20KByte RAM
@@ -46,7 +46,7 @@ Linker subscript for STM32F10x definitions with 128K Flash and 20K RAM */
 MEMORY
 {
   RAM (xrw)     : ORIGIN = 0x20000000, LENGTH = 20K
-  FLASH (rx)    : ORIGIN = 0x0800A000, LENGTH = 128K-0xA000
+  FLASH (rx)    : ORIGIN = 0x08005000, LENGTH = 128K-0x5000
   FLASHB1 (rx)  : ORIGIN = 0x00000000, LENGTH = 0
   EXTMEMB0 (rx) : ORIGIN = 0x00000000, LENGTH = 0
   EXTMEMB1 (rx) : ORIGIN = 0x00000000, LENGTH = 0
@@ -122,6 +122,7 @@ SECTIONS
         _sbss = .;
         
         *(.bss)
+        *(.bss*)
         *(COMMON)
         
 	    . = ALIGN(4);

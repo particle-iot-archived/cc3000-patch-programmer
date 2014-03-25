@@ -1,12 +1,29 @@
 /**
  ******************************************************************************
  * @file    main.c
- * @author  Spark Application Team
+ * @author  Satish Nair, Zachary Crockett, Zach Supalla and Mohit Bhoite
  * @version V1.0.0
- * @date    03-June-2013
+ * @date    13-March-2013
  * @brief   Main program body.
  ******************************************************************************
+  Copyright (c) 2013 Spark Labs, Inc.  All rights reserved.
+  Copyright (c) 2013 Texas Instruments Inc.
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation, either
+  version 3 of the License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this program; if not, see <http://www.gnu.org/licenses/>.
+  ******************************************************************************
  */
+
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "evnt_handler.h"
@@ -197,15 +214,18 @@ unsigned char checkServicePackVersion();
  *******************************************************************************/
 int main(void)
 {
+#ifdef DFU_BUILD_ENABLE
+	/* Set the Vector Table(VT) base location at 0x5000 */
+	NVIC_SetVectorTable(NVIC_VectTab_FLASH, 0x5000);
+#endif
+
 	Set_System();
 
 	SysTick_Configuration();
 
-#if defined (USE_SPARK_CORE_V02)
 	/* Set RGB Led Flashing color to Magenta */
 	LED_SetRGBColor(RGB_COLOR_MAGENTA);
 	LED_On(LED_RGB);
-#endif
 
     // Init WLAN and request to load with patches.
     WLAN_Init_Driver(0);
@@ -220,23 +240,28 @@ int main(void)
     	if(BUTTON_GetDebouncedTime(BUTTON1) >= 1000)
     	{
     		BUTTON_ResetDebouncedState(BUTTON1);
+#ifndef DFU_BUILD_ENABLE
 			DIO_SetState(D0, HIGH);		//D0 - we started the flash
-
+#endif
 	    	WLAN_Apply_Patch();
 	    }
 		*/
         
         if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
+#ifndef DFU_BUILD_ENABLE
             //CC3000_PATCH_STARTED = 0;
             DIO_SetState(D2, HIGH);
+#endif
         }
         
 
         //keep checking the version to see if it matches eventually?
         if (!CC3000_PATCH_STARTED || CC3000_PATCH_APPLIED) {
             if (CC3000_VERSION_MATCHED) {
+#ifndef DFU_BUILD_ENABLE
                 //D1 high means we don't need to wait after the patch succeeded...
                 DIO_SetState(D1, HIGH);
+#endif
             }
             else {
                 //if the versions didn't match yet, keep checking, maybe eventually they'll match?
@@ -273,12 +298,7 @@ void Timing_Decrement(void)
     }
     else if(!CC3000_PATCH_APPLIED)
     {
-#if defined (USE_SPARK_CORE_V01)
-    	LED_Toggle(LED1);
-    	LED_Toggle(LED2);
-#elif defined (USE_SPARK_CORE_V02)
     	LED_Toggle(LED_RGB);
-#endif
     	TimingLED = 200;	//200ms
     }
 }
@@ -297,12 +317,7 @@ void Timing_Decrement(void)
 //*****************************************************************************
 int WLAN_Init_Driver(unsigned short cRequestPatch)
 {
-#if defined (USE_SPARK_CORE_V01)
-	LED_Off(LED1);
-	LED_Off(LED2);
-#elif defined (USE_SPARK_CORE_V02)
 	LED_Off(LED_RGB);
-#endif
 
 	/* Initialize CC3000's CS, EN and INT pins to their default states */
 	CC3000_WIFI_Init();
@@ -530,12 +545,7 @@ void WLAN_Apply_Patch(void)
 
 	Delay(100);
 
-#if defined (USE_SPARK_CORE_V01)
-	LED_On(LED1);
-	LED_On(LED2);
-#elif defined (USE_SPARK_CORE_V02)
 	LED_On(LED_RGB);
-#endif
 }
 
 /* WLAN Application related callbacks passed to wlan_init */
