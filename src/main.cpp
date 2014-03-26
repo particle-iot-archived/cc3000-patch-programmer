@@ -238,6 +238,8 @@ int main(void)
     WLAN_Init_Driver(0);
 
 	DIO_SetState(D0, HIGH);		//D0 - we started the flash
+	DIO_SetState(D1, LOW);		//D0 - we started the flash
+	DIO_SetState(D2, LOW);		//D0 - we started the flash
 	WLAN_Apply_Patch();
 	
 	/* Main loop */
@@ -247,27 +249,21 @@ int main(void)
     	if(BUTTON_GetDebouncedTime(BUTTON1) >= 1000)
     	{
     		BUTTON_ResetDebouncedState(BUTTON1);
-#ifndef DFU_BUILD_ENABLE
 			DIO_SetState(D0, HIGH);		//D0 - we started the flash
-#endif
 	    	WLAN_Apply_Patch();
 	    }
 		*/
         
         if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
-#ifndef DFU_BUILD_ENABLE
             //CC3000_PATCH_STARTED = 0;
             DIO_SetState(D2, HIGH);
-#endif
         }
         
         //keep checking the version to see if it matches eventually?
         if (!CC3000_PATCH_STARTED || CC3000_PATCH_APPLIED) {
             if (CC3000_VERSION_MATCHED) {
-#ifndef DFU_BUILD_ENABLE
                 //D1 high means we don't need to wait after the patch succeeded...
                 DIO_SetState(D1, HIGH);
-#endif
             }
             else {
                 //if the versions didn't match yet, keep checking, maybe eventually they'll match?
