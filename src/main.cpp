@@ -263,12 +263,28 @@ int main(void)
                 //D1 high means we don't need to wait after the patch succeeded...
                 DIO_SetState(D1, HIGH);
 #endif
+                Delay(1000);
             }
             else {
                 //if the versions didn't match yet, keep checking, maybe eventually they'll match?
                 checkServicePackVersion();
                 Delay(1000);
             }
+
+
+            //NOTE TO DAVID: Since the patch is in limbo, it's hard to know what version # we should be looking for here,
+            //so lets call it a day when the patch is done, and just reset into dfu mode.
+            Delay(5000);
+
+//           //RESET INTO DFU MODE
+//
+//            FLASH_OTA_Update_SysFlag = 0x0000;
+//            Save_SystemFlags();
+//            BKP_WriteBackupRegister(BKP_DR10, 0x0000);
+//
+//            USB_Cable_Config(DISABLE);
+//            NVIC_SystemReset();
+
         }
 	}
 }
