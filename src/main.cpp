@@ -52,7 +52,7 @@ extern "C" {
 
 /* Private variables ---------------------------------------------------------*/
 
-__IO uint8_t CC3000_PATCH_APPLIED = 1;
+__IO uint8_t CC3000_PATCH_APPLIED = 0;
 __IO uint8_t CC3000_VERSION_MATCHED = 0;
 __IO uint8_t CC3000_PATCH_STARTED = 0;
 
@@ -240,52 +240,69 @@ int main(void)
 	/* Main loop */
 	while (1)
 	{
-    	if(BUTTON_GetDebouncedTime(BUTTON1) >= 1000)
+
+        if (!CC3000_PATCH_STARTED && !CC3000_PATCH_APPLIED)
     	{
     		BUTTON_ResetDebouncedState(BUTTON1);
-#ifndef DFU_BUILD_ENABLE
 			DIO_SetState(D0, HIGH);		//D0 - we started the flash
-#endif
 	    	WLAN_Apply_Patch();
 	    }
-        
-        if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
-#ifndef DFU_BUILD_ENABLE
-            //CC3000_PATCH_STARTED = 0;
+        else if (CC3000_PATCH_STARTED && CC3000_PATCH_APPLIED) {
             DIO_SetState(D2, HIGH);
-#endif
-        }
-        
-        //keep checking the version to see if it matches eventually?
-        if (!CC3000_PATCH_STARTED || CC3000_PATCH_APPLIED) {
+
+            checkServicePackVersion();
+
+            //keep checking the version to see if it matches eventually?
             if (CC3000_VERSION_MATCHED) {
-#ifndef DFU_BUILD_ENABLE
                 //D1 high means we don't need to wait after the patch succeeded...
-                DIO_SetState(D1, HIGH);
-#endif
-                Delay(1000);
+
+                LED_SetRGBColor(RGB_COLOR_GREEN);
+                LED_On(LED_RGB);
+
+                USE_SYSTEM_FLAGS = 1;
+
+                //RESET INTO DFU MODE PLEASE!
+                FLASH_OTA_Update_SysFlag = 0xFFFF;
+                Save_SystemFlags();
+
+                //THE BACKUP REGISTERS, THEY DO NOTHING!!
+
+                //firmware state flag
+                BKP_WriteBackupRegister(BKP_DR10, 0xFFFF);
+
+                //system health -- SET_SYS_HEALTH(0xFFFF);
+                BKP_WriteBackupRegister(BKP_DR1, 0xFFFF);
+
+                //OTA_FLASHED_Status_SysFlag
+
+
+                USB_Cable_Config(DISABLE);
+                NVIC_SystemReset();
             }
-            else {
-                //if the versions didn't match yet, keep checking, maybe eventually they'll match?
-                checkServicePackVersion();
-                Delay(1000);
-            }
-
-
-            //NOTE TO DAVID: Since the patch is in limbo, it's hard to know what version # we should be looking for here,
-            //so lets call it a day when the patch is done, and just reset into dfu mode.
-            Delay(5000);
-
-//           //RESET INTO DFU MODE
-//
-//            FLASH_OTA_Update_SysFlag = 0x0000;
-//            Save_SystemFlags();
-//            BKP_WriteBackupRegister(BKP_DR10, 0x0000);
-//
-//            USB_Cable_Config(DISABLE);
-//            NVIC_SystemReset();
-
+            Delay(1000);
         }
+
+            /* TO Enter DFU MODE!
+
+            BKP_ReadBackupRegister(BKP_DR10) must not be any of
+                0x5000
+                0x0005
+                0x5555
+            FLASH_OTA_Update_SysFlag must not be any of
+                0x5000
+                0x0005
+                0x5555
+
+            BKP_DR1_Value must equal  0xFFFF
+                OR RCC_GetFlagStatus(RCC_FLAG_IWDGRST) must equal  RESET
+
+            BUTTON1 must not be pressed
+            OTA_FLASH_AVAILABLE must not equal 1
+            FACTORY_RESET_MODE must be false
+            */
+
+
+
 	}
 }
 
@@ -612,7 +629,7 @@ char *WLAN_BootLoader_Patch(unsigned long *length)
 unsigned char checkServicePackVersion() {
     //read the current service pack version of the firwmare on the cc3000
     if (nvmem_read_sp_version(ccPatchVersion) == 0) {
-        if ((ccPatchVersion[0] == 1) && (ccPatchVersion[1] == 24)) {
+        if ((ccPatchVersion[0] == 1) && (ccPatchVersion[1] == 29)) {
             CC3000_VERSION_MATCHED = 1;
             return 1;
         }
