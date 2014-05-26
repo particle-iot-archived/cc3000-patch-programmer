@@ -511,7 +511,7 @@ void WLAN_Apply_Patch(void)
     }
     
     // Read MAC address.
-    mac_status = nvmem_get_mac_address(cMacFromEeprom);
+    mac_status = ((MAC_ADDR_LEN == nvmem_get_mac_address(cMacFromEeprom)) ?  0 : -1);
 
     return_status = 1;
 
@@ -526,7 +526,7 @@ void WLAN_Apply_Patch(void)
 
         for (index = 0; index < 16; index++)
         {
-            return_status |= nvmem_read(NVMEM_RM_FILEID, 8, 8*index, pRMParams);
+            return_status |= ((8 == nvmem_read(NVMEM_RM_FILEID, 8, 8*index, pRMParams)) ? 0 : -1);
             pRMParams += 8;
         }
         counter++;
