@@ -36,23 +36,6 @@ extern "C" {
 #include "wlan.h"
 #include "nvmem.h"
 
-//#include "spark_wlan.h"
-#include "spark_macros.h"
-#include "string.h"
-//#include "wifi_credentials_reader.h"
-
-/* CC3000 EEPROM - Spark File Data Storage */
-#define NVMEM_SPARK_FILE_ID			14	//Do not change this ID
-#define NVMEM_SPARK_FILE_SIZE		16	//Change according to requirement
-#define WLAN_PROFILE_FILE_OFFSET	0
-#define WLAN_POLICY_FILE_OFFSET		1
-#define WLAN_TIMEOUT_FILE_OFFSET	2
-#define ERROR_COUNT_FILE_OFFSET		3
-
-
-unsigned char NVMEM_Spark_File_Data[NVMEM_SPARK_FILE_SIZE];
-
-
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
@@ -273,32 +256,8 @@ int main(void)
             if (CC3000_VERSION_MATCHED) {
                 //D1 high means we don't need to wait after the patch succeeded...
 
-                DIO_SetState(D1, HIGH);
                 LED_SetRGBColor(RGB_COLOR_GREEN);
                 LED_On(LED_RGB);
-                Delay(1000);
-
-                //-----
-                //attempt to clear now corrupted wifi profiles
-
-                LED_SetRGBColor(RGB_COLOR_BLUE);
-                LED_On(LED_RGB);
-                /* Delete all previously stored wlan profiles */
-                wlan_ioctl_del_profile(255);
-
-                /* EEPROM because Spark file IO on old TI Driver was corrupting nvmem
-                 * Let's Remove entry for Spark File in CC3000  */
-                nvmem_create_entry(NVMEM_SPARK_FILE_ID, 0);
-
-                /* Create new entry for Spark File in CC3000 EEPROM */
-                nvmem_create_entry(NVMEM_SPARK_FILE_ID, NVMEM_SPARK_FILE_SIZE);
-
-                memset(NVMEM_Spark_File_Data,0, arraySize(NVMEM_Spark_File_Data));
-
-                nvmem_write(NVMEM_SPARK_FILE_ID, NVMEM_SPARK_FILE_SIZE, 0, NVMEM_Spark_File_Data);
-                //-----
-
-
 
                 USE_SYSTEM_FLAGS = 1;
 
