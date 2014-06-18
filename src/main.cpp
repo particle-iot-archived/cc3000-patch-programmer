@@ -232,7 +232,7 @@ int main(void)
 
 	SysTick_Configuration();
 
-	/* Set RGB Led Flashing color to Magenta */
+ 	/* Set RGB Led Flashing color to Magenta */
 	LED_SetRGBColor(RGB_COLOR_MAGENTA);
 	LED_On(LED_RGB);
 
@@ -259,6 +259,8 @@ int main(void)
 
             //keep checking the version to see if it matches eventually?
             if (CC3000_VERSION_MATCHED) {
+                Delay(1500);
+
                 //D1 high means we don't need to wait after the patch succeeded...
 
                 LED_SetRGBColor(RGB_COLOR_GREEN);
