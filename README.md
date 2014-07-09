@@ -6,6 +6,10 @@ This firmware depends on the [Spark Common Library](http://www.github.com/spark/
 
 ## Quick Deploy
 
+**IMPORTANT**: The easiest way to apply the CC3000 patch is to **[use the Spark CLI](https://github.com/spark/spark-cli#apply-the-cc3000-patch)**.
+This is recommended and simpliest path, whereas the approach below is more appropriate if you are doing advanced things
+like testing different patch version binaries, doing cc3000-patch-programmer development, etc.
+
 If you simply want to run this Patch Programmer on your Spark Core and then return to the standard Spark Core firmware, follow these instructions.
 
 1. Download this repository
