@@ -19,7 +19,7 @@ dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
 
 5. When the Patch Programmer is installed, the LED should turn off. Press the MODE button for one second to install the Patch; the LED should start flashing magenta.
 6. When the patch has been successfully installed, the LED will switch to solid magenta.
-7. To reboot back into the Spark Core standard firmware, hold the MODE button for 10 seconds while the Core is powering up (as above, to get into bootloader mode). This will activate a factory reset; if it is successful, the LED will flash white, and then the Core will return to its previous state (but with new firmware on the CC3000).
+7. To reboot back into the Spark Core standard firmware, perform a factory reset by holding down both RESET and MODE button, release only RESET, and continue to hold MODE for 10 more seconds. If it is successful, the LED will flash white, and then the Core will return to its previous state (but with new firmware on the CC3000). If you don't see rapid white flashing, try this step again.
 
 ## Table of Contents
 
@@ -53,7 +53,7 @@ Download and install the latest version from: http://gnuwin32.sourceforge.net/pa
 Install dfu-util. Mac users can install dfu-util with [Homebrew](http://brew.sh/), Linux users may find it in their package manager, and everyone can get it from http://dfu-util.gnumonks.org/index.html
 
 #### 4. Zadig
-In order for the Core to show up on the dfu list, you need to replace the USB driver with a utility called [Zadig](http://zadig.akeo.ie/). Here is a [tutorial](https://github.com/pbatard/libwdi/wiki/Zadig) on using it. This is only required for Windows users.
+In order for the Core to show up on the dfu list, you need to replace the USB driver with a utility called [Zadig](http://zadig.akeo.ie/). Here is a [tutorial](https://community.spark.io/t/tutorial-installing-dfu-driver-on-windows/3518) on using it. This is only required for Windows users.
 
 #### 5. Git
 

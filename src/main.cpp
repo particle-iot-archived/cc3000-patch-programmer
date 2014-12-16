@@ -36,23 +36,6 @@ extern "C" {
 #include "wlan.h"
 #include "nvmem.h"
 
-//#include "spark_wlan.h"
-#include "spark_macros.h"
-#include "string.h"
-//#include "wifi_credentials_reader.h"
-
-/* CC3000 EEPROM - Spark File Data Storage */
-#define NVMEM_SPARK_FILE_ID			14	//Do not change this ID
-#define NVMEM_SPARK_FILE_SIZE		16	//Change according to requirement
-#define WLAN_PROFILE_FILE_OFFSET	0
-#define WLAN_POLICY_FILE_OFFSET		1
-#define WLAN_TIMEOUT_FILE_OFFSET	2
-#define ERROR_COUNT_FILE_OFFSET		3
-
-
-unsigned char NVMEM_Spark_File_Data[NVMEM_SPARK_FILE_SIZE];
-
-
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
@@ -179,20 +162,19 @@ unsigned char ucStatus_Dr, ucStatus_FW, return_status = 0xFF;;
 signed char mac_status = -1;
 unsigned char counter = 0;
 
+#define RM_PARAMS_LEN   (128)
 // array to store RM parameters from EEPROM
-unsigned char cRMParamsFromEeprom[128];
+unsigned char cRMParamsFromEeprom[RM_PARAMS_LEN];
 
 // array to store MAC address from EEPROM
 unsigned char cMacFromEeprom[MAC_ADDR_LEN];
 
+#define WLAN_CONFIG_LEN (100)
+// array to store MAC address from EEPROM
+unsigned char cWlanConfigFromEeprom[WLAN_CONFIG_LEN];
+
 //array to store CC3000 service pack version
 unsigned char ccPatchVersion[2];
-
-unsigned char 	is_allocated[NVMEM_RM_FILEID + 1];
-unsigned char 	is_valid[NVMEM_RM_FILEID + 1];
-unsigned char 	write_protected[NVMEM_RM_FILEID + 1];
-unsigned short 	file_address[NVMEM_RM_FILEID + 1];
-unsigned short 	file_length[NVMEM_RM_FILEID + 1];
 
 // Smart Config Prefix
 char auc_prefix[] = {'T', 'T', 'T'};
@@ -279,32 +261,8 @@ int main(void)
             if (CC3000_VERSION_MATCHED) {
                 //D1 high means we don't need to wait after the patch succeeded...
 
-                DIO_SetState(D1, HIGH);
                 LED_SetRGBColor(RGB_COLOR_GREEN);
                 LED_On(LED_RGB);
-                Delay(1000);
-
-                //-----
-                //attempt to clear now corrupted wifi profiles
-
-                LED_SetRGBColor(RGB_COLOR_BLUE);
-                LED_On(LED_RGB);
-                /* Delete all previously stored wlan profiles */
-                wlan_ioctl_del_profile(255);
-
-                /* EEPROM because Spark file IO on old TI Driver was corrupting nvmem
-                 * Let's Remove entry for Spark File in CC3000  */
-                nvmem_create_entry(NVMEM_SPARK_FILE_ID, 0);
-
-                /* Create new entry for Spark File in CC3000 EEPROM */
-                nvmem_create_entry(NVMEM_SPARK_FILE_ID, NVMEM_SPARK_FILE_SIZE);
-
-                memset(NVMEM_Spark_File_Data,0, arraySize(NVMEM_Spark_File_Data));
-
-                nvmem_write(NVMEM_SPARK_FILE_ID, NVMEM_SPARK_FILE_SIZE, 0, NVMEM_Spark_File_Data);
-                //-----
-
-
 
                 USE_SYSTEM_FLAGS = 1;
 
@@ -441,60 +399,6 @@ int WLAN_Init_Driver(unsigned short cRequestPatch)
 
 //*****************************************************************************
 //
-//! fat_read_content
-//!
-//! @param[out] is_allocated  array of is_allocated in FAT table:\n
-//!						 an allocated entry implies the address and length of the file are valid.
-//!  		    			 0: not allocated; 1: allocated.
-//! @param[out] is_valid  array of is_valid in FAT table:\n
-//!						 a valid entry implies the content of the file is relevant.
-//!  		    			 0: not valid; 1: valid.
-//! @param[out] write_protected  array of write_protected in FAT table:\n
-//!						 a write protected entry implies it is not possible to write into this entry.
-//!  		    			 0: not protected; 1: protected.
-//! @param[out] file_address  array of file address in FAT table:\n
-//!						 this is the absolute address of the file in the EEPROM.
-//! @param[out] file_length  array of file length in FAT table:\n
-//!						 this is the upper limit of the file size in the EEPROM.
-//!
-//! @return on succes 0, error otherwise
-//!
-//! @brief  parse the FAT table from eeprom
-//
-//*****************************************************************************
-unsigned char fat_read_content(unsigned char *is_allocated,
-                               unsigned char *is_valid,
-                               unsigned char *write_protected,
-                               unsigned short *file_address,
-                               unsigned short *file_length)
-{
-	unsigned short  index;
-	unsigned char   ucStatus;
-	unsigned char   fatTable[48];
-	unsigned char*  fatTablePtr = fatTable;
-
-	// read the FAT
-	ucStatus = nvmem_read(16, 48, 4, fatTable);
-
-	fatTablePtr = fatTable;
-
-	for (index = 0; index <= NVMEM_RM_FILEID; index++)
-	{
-		*is_allocated++ = (*fatTablePtr) & BIT0;
-		*is_valid++ = ((*fatTablePtr) & BIT1) >> 1;
-		*write_protected++ = ((*fatTablePtr) & BIT2) >> 2;
-		*file_address++ = (*(fatTablePtr+1)<<8) | (*fatTablePtr) & (BIT4|BIT5|BIT6|BIT7);
-		*file_length++ = (*(fatTablePtr+3)<<8) | (*(fatTablePtr+2)) & (BIT4|BIT5|BIT6|BIT7);
-
-		// move to next file ID
-		fatTablePtr += 4;
-	}
-
-	return ucStatus;
-}
-
-//*****************************************************************************
-//
 //! fat_write_content
 //!
 //! @param[in] file_address  array of file address in FAT table:\n
@@ -508,142 +412,231 @@ unsigned char fat_read_content(unsigned char *is_allocated,
 //
 //*****************************************************************************
 unsigned char fat_write_content(unsigned short const *file_address,
-								unsigned short const *file_length)
+                                unsigned short const *file_length)
 {
-	unsigned short  index = 0;
-	unsigned char   ucStatus;
-	unsigned char   fatTable[48];
-	unsigned char*  fatTablePtr = fatTable;
+    unsigned short  index = 0;
+    unsigned char   ucStatus;
+    unsigned char   fatTable[48];
+    unsigned char*  fatTablePtr = fatTable;
 
-	// first, write the magic number
-	ucStatus = nvmem_write(16, 2, 0, (unsigned char *)"LS");
+    //
+    // First, write the magic number.
+    //
+    ucStatus = nvmem_write(16, 2, 0, (unsigned char *)"LS");
 
-	for (; index <= NVMEM_RM_FILEID; index++)
-	{
-		// write address low char and mark as allocated
-		*fatTablePtr++ = (unsigned char)(file_address[index] & 0xff) | BIT0;
+    for (; index <= NVMEM_RM_FILEID; index++)
+    {
+        //
+        // Write address low char and mark as allocated.
+        //
+        *fatTablePtr++ = (unsigned char)(file_address[index] & 0xff) | BIT0;
 
-		// write address high char
-		*fatTablePtr++ = (unsigned char)((file_address[index]>>8) & 0xff);
+        //
+        // Write address high char.
+        //
+        *fatTablePtr++ = (unsigned char)((file_address[index]>>8) & 0xff);
 
-		// write length low char
-		*fatTablePtr++ = (unsigned char)(file_length[index] & 0xff);
+        //
+        // Write length low char.
+        //
+        *fatTablePtr++ = (unsigned char)(file_length[index] & 0xff);
 
-		// write length high char
-		*fatTablePtr++ = (unsigned char)((file_length[index]>>8) & 0xff);
-	}
+        //
+        // Write length high char.
+        //
+        *fatTablePtr++ = (unsigned char)((file_length[index]>>8) & 0xff);
+    }
 
-	// second, write the FAT
-	ucStatus = nvmem_write(16, 48, 4, fatTable);
+    //
+    // Second, write the FAT.
+    //
+    ucStatus = nvmem_write(16, 48, 4, fatTable);
 
-	// third, we want to erase any user files
-	memset(fatTable, 0, sizeof(fatTable));
-	ucStatus = nvmem_write(16, 16, 52, fatTable);
+    //
+    // Third, we want to erase any user files.
+    //
+    memset(fatTable, 0, sizeof(fatTable));
+    ucStatus = nvmem_write(16, 16, 52, fatTable);
 
-	return ucStatus;
+    return ucStatus;
 }
 
 void WLAN_Apply_Patch(void)
 {
-	unsigned char *pRMParams;
+    unsigned short  index;
+    unsigned char *pRMParams;
 
-	CC3000_PATCH_APPLIED = 0;
-	CC3000_PATCH_STARTED = 1;
+    CC3000_PATCH_APPLIED = 0;
+    CC3000_PATCH_STARTED = 1;
 
-	// Init WLAN and request to load with no patches.
-	// this is in order to overwrite restrictions to write to specific places in EEPROM
-	WLAN_Init_Driver(1);
-    
+    // Init WLAN and request to load with no patches.
+    // this is in order to overwrite restrictions to write to specific places in EEPROM
+    WLAN_Init_Driver(1);
+
     //read the current service pack version of the firwmare on the cc3000
-    if (checkServicePackVersion()) {
+    if (checkServicePackVersion())
+    {
         //we're already done...?
         CC3000_PATCH_APPLIED = 1;
         CC3000_VERSION_MATCHED = 1;
         return;
     }
     
+    // Read MAC address.
+    mac_status = nvmem_get_mac_address(cMacFromEeprom);
 
-	// read MAC address
-	mac_status = nvmem_get_mac_address(cMacFromEeprom);
+    return_status = 1;
+    counter = 0;
 
-	return_status = 1;
+    while ((return_status) && (counter < 3))
+    {
+        //
+        // Read Wlan Configuration.
+        //
+        return_status = ((WLAN_CONFIG_LEN == nvmem_read(NVMEM_WLAN_CONFIG_FILEID, WLAN_CONFIG_LEN, 0, cWlanConfigFromEeprom)) ?  0 : -1);
 
-	while ((return_status) && (counter < 3))
-	{
-		// read RM parameters
-		return_status = nvmem_read(NVMEM_RM_FILEID, 128, 0, cRMParamsFromEeprom);
+        counter++;
+    }
 
-		counter++;
-	}
+    return_status = 1;
+    counter = 0;
 
-	// if RM file is not valid, load the default one
-	if (counter == 3)
-	{
-		pRMParams = (unsigned char *)cRMdefaultParams;
-	}
-	else
-	{
-		pRMParams = cRMParamsFromEeprom;
-	}
+    while ((return_status) && (counter < 3))
+    {
+        //
+        // Read RM parameters.
+        //
+        return_status = ((RM_PARAMS_LEN == nvmem_read(NVMEM_RM_FILEID, RM_PARAMS_LEN, 0, cRMParamsFromEeprom)) ?  0 : -1);
 
-	return_status = 1;
+        counter++;
+    }
 
-	while (return_status)
-	{
-		// write new FAT
-		return_status = fat_write_content(aFATEntries[0], aFATEntries[1]);
-	}
+    //
+    // If RM file is not valid, load the default one.
+    //
+    if (counter == 3)
+    {
+        pRMParams = (unsigned char *)cRMdefaultParams;
+    }
+    else
+    {
+        pRMParams = cRMParamsFromEeprom;
+    }
 
-	wlan_stop();
-	WLAN_Init_Driver(1);
+    return_status = 1;
 
-	return_status = 1;
+    while (return_status)
+    {
+        //
+        // Write new FAT.
+        //
+        return_status = fat_write_content(aFATEntries[0], aFATEntries[1]);
+    }
 
-	while (return_status)
-	{
-		// write RM parameters
-		return_status = nvmem_write(NVMEM_RM_FILEID, 128, 0, pRMParams);
-	}
+    return_status = 1;
 
-	return_status = 1;
+    while (return_status)
+    {
+        //
+        // Write RM parameters.
+        //
+        return_status = nvmem_write(NVMEM_RM_FILEID, RM_PARAMS_LEN, 0, pRMParams);
+    }
 
-	// write back the MAC address, only if exist
-	if (mac_status == 0)
-	{
-		// zero out MCAST bit if set
-		cMacFromEeprom[0] &= 0xfe;
-		while (return_status)
-		{
-			return_status = nvmem_set_mac_address(cMacFromEeprom);
-		}
-	}
+    return_status = 1;
 
-	ucStatus_Dr = 1;
+    while (return_status)
+    {
+        //
+        // Write Wlan Configuration.
+        //
+        return_status = nvmem_write(NVMEM_WLAN_CONFIG_FILEID, WLAN_CONFIG_LEN, 0, cWlanConfigFromEeprom);
+    }
 
-	while (ucStatus_Dr)
-	{
-		// Writing driver patch to EEPROM
-		// Note that the array itself is changing between the different Service Packs
-		ucStatus_Dr = nvmem_write_patch(NVMEM_WLAN_DRIVER_SP_FILEID, drv_length, wlan_drv_patch);
-	}
+    return_status = 1;
 
-	ucStatus_FW = 1;
+    //
+    // Write back the MAC address, only if exists.
+    //
+    if (mac_status == 0)
+    {
+        //
+        // Zero out MCAST bit if set.
+        //
+        cMacFromEeprom[0] &= 0xfe;
+        while (return_status)
+        {
+            return_status = nvmem_set_mac_address(cMacFromEeprom);
+        }
+    }
 
-	while (ucStatus_FW)
-	{
-		// Writing FW patch to EEPROM
-		// Note that the array itself is changing between the different Service Packs
-		ucStatus_FW = nvmem_write_patch(NVMEM_WLAN_FW_SP_FILEID, fw_length, fw_patch);
-	}
+    ucStatus_Dr = 1;
 
-	// Init WLAN and request to load with patches.
-	WLAN_Init_Driver(0);
+    while (ucStatus_Dr)
+    {
+        //
+        // Writing driver patch to EEPRROM - PROTABLE CODE
+        // Note that the array itself is changing between the
+        // different Service Packs.
+        //
+        ucStatus_Dr = nvmem_write_patch(NVMEM_WLAN_DRIVER_SP_FILEID,
+                                        drv_length,
+                                        wlan_drv_patch);
+    }
 
-	CC3000_PATCH_APPLIED = 1;
+    ucStatus_FW = 1;
 
-	Delay(100);
+    while (ucStatus_FW)
+    {
+        //
+        // Writing FW patch to EEPRROM - PROTABLE CODE
+        // Note that the array itself is changing between the
+        // different Service Packs.
+        //
+        ucStatus_FW = nvmem_write_patch(NVMEM_WLAN_FW_SP_FILEID,
+                                        fw_length,
+                                        fw_patch);
+    }
 
-	LED_On(LED_RGB);
+    // Init WLAN and request to load with patches.
+    WLAN_Init_Driver(0);
+
+    //
+    // If the set MAC address is corrupted/invalid,
+    // create and set a Spark specified MAC address
+    // first 3 bytes representing TI vendor ID
+    // plus 3,9,10 byte offset from STM32's device ID
+    //
+    if (cMacFromEeprom[0] != 0x08 || cMacFromEeprom[1] != 0x00 || cMacFromEeprom[2] != 0x28)//check for TI id
+    {
+        if (!(cMacFromEeprom[0] == 0x00 && cMacFromEeprom[1] == 0x19 && cMacFromEeprom[2] == 0x94))//check for Jorjin id
+        {
+            //Write a valid TI vendor based MAC address here
+
+            char deviceID[12];
+            memcpy(deviceID, (char *)ID1, 12);
+
+            cMacFromEeprom[0] = 0x08;
+            cMacFromEeprom[1] = 0x00;
+            cMacFromEeprom[2] = 0x28;
+            cMacFromEeprom[3] = deviceID[2];//3rd byte
+            cMacFromEeprom[4] = deviceID[8];//9th byte
+            cMacFromEeprom[5] = deviceID[9];//10th byte
+
+            return_status = 1;
+
+            while (return_status)
+            {
+                return_status = nvmem_set_mac_address(cMacFromEeprom);
+            }
+        }
+    }
+
+    CC3000_PATCH_APPLIED = 1;
+
+    Delay(100);
+
+    LED_On(LED_RGB);
 }
 
 /* WLAN Application related callbacks passed to wlan_init */
@@ -676,7 +669,7 @@ char *WLAN_BootLoader_Patch(unsigned long *length)
 unsigned char checkServicePackVersion() {
     //read the current service pack version of the firwmare on the cc3000
     if (nvmem_read_sp_version(ccPatchVersion) == 0) {
-        if ((ccPatchVersion[0] == 1) && (ccPatchVersion[1] == 29)) {
+        if ((ccPatchVersion[0] == 1) && (ccPatchVersion[1] == 28)) {
             CC3000_VERSION_MATCHED = 1;
             return 1;
         }
