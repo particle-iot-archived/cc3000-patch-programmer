@@ -269,6 +269,7 @@ int main(void)
             if (CC3000_VERSION_MATCHED) {
 
                 //D1 high means we don't need to wait after the patch succeeded...
+                DIO_SetState(D1, HIGH);
                 LED_SetRGBColor(RGB_COLOR_GREEN);
                 LED_On(LED_RGB);
                 Delay(1500);
