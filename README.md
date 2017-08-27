@@ -151,7 +151,7 @@ All of the repositories are sub divided into functional folders:
 
    For example, this is how my terminal looks like:
    ```
-D:\Spark\cc3000-patch-programmer\build [dfu-user]> dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
+   D:\Spark\cc3000-patch-programmer\build [dfu-user]> dfu-util -d 1d50:607f -a 0 -s 0x08005000:leave -D cc3000-patch-programmer.bin
    ```
 Upon successful transfer, the Core will automatically reset and start the running the cc3000 patch program.
 
