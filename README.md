@@ -2,11 +2,11 @@
 
 This is the main source code repository of the Spark Core's TI CC3000 Patch Programmer ported to STM32
 
-This firmware depends on the [Spark Common Library](http://www.github.com/spark/core-common-lib).
+This firmware depends on the [Spark Common Library](http://www.github.com/particle-iot/core-common-lib).
 
 ## Quick Deploy
 
-**IMPORTANT**: The easiest way to apply the CC3000 patch is to **[use the Spark CLI](https://github.com/spark/spark-cli#apply-the-cc3000-patch)**.
+**IMPORTANT**: The easiest way to apply the CC3000 patch is to **[use the Spark CLI](https://github.com/particle-iot/spark-cli#apply-the-cc3000-patch)**.
 This is recommended and simpliest path, whereas the approach below is more appropriate if you are doing advanced things
 like testing different patch version binaries, doing cc3000-patch-programmer development, etc.
 
@@ -84,15 +84,15 @@ Open up a terminal window, navigate to your destination directory and type the f
 
 (Make sure you have git installed on your machine!)
 
-* `git clone https://github.com/spark/cc3000-patch-programmer.git`  
-* `git clone https://github.com/spark/core-common-lib.git`
+* `git clone https://github.com/particle-iot/cc3000-patch-programmer.git`  
+* `git clone https://github.com/particle-iot/core-common-lib.git`
 * `cd cc3000-patch-programmer`
 * `git checkout dfu-user`
 
 *Method 2: Download the zipped files directly from the Spark's GitHub website*
 
-* [cc3000-patch-programmer](https://github.com/spark/cc3000-patch-programmer/archive/dfu-user.zip)
-* [core-common-lib](https://github.com/spark/core-common-lib/archive/master.zip)
+* [cc3000-patch-programmer](https://github.com/particle-iot/cc3000-patch-programmer/archive/dfu-user.zip)
+* [core-common-lib](https://github.com/particle-iot/core-common-lib/archive/master.zip)
 
 #### How do we *build* these repositories?
 
